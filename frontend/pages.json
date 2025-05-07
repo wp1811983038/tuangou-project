@@ -1,15 +1,16 @@
 {
 	"pages": [
 	  {
-		"path": "pages/index/index",
-		"style": {
-		  "navigationBarTitleText": "团购小程序"
-		}
-	  },
-	  {
 		"path": "pages/login/index",
 		"style": {
 		  "navigationBarTitleText": "登录"
+		}
+	  },
+	  {
+		"path": "pages/user/index",
+		"style": {
+		  "navigationBarTitleText": "商品列表",
+		  "enablePullDownRefresh": true
 		}
 	  },
 	  {
@@ -23,11 +24,23 @@
 		"style": {
 		  "navigationBarTitleText": "管理员登录"
 		}
+	  },
+	  {
+		"path": "pages/merchant/index",
+		"style": {
+		  "navigationBarTitleText": "商户中心"
+		}
+	  },
+	  {
+		"path": "pages/admin/index",
+		"style": {
+		  "navigationBarTitleText": "管理后台"
+		}
 	  }
 	],
 	"globalStyle": {
 	  "navigationBarTextStyle": "black",
-	  "navigationBarTitleText": "团购小程序",
+	  "navigationBarTitleText": "社区团购",
 	  "navigationBarBackgroundColor": "#F8F8F8",
 	  "backgroundColor": "#F8F8F8"
 	},
@@ -38,9 +51,10 @@
 	  "backgroundColor": "#ffffff",
 	  "list": [
 		{
-		  "pagePath": "pages/index/index",
+		  "pagePath": "pages/user/index",
 		  "text": "首页"
 		}
 	  ]
-	}
+	},
+	"entryPagePath": "pages/login/index"
   }
