@@ -5,6 +5,9 @@ from app.routers import merchant as merchant_router
 from app.routers import admin as admin_router
 from app.config import settings
 from app.database import Base, engine
+from app.routers import merchant_admin as merchant_admin_router
+
+# 在已有的路由注册代码下方添加
 
 # 创建数据库表（此操作假设数据库已存在）
 Base.metadata.create_all(bind=engine)
@@ -29,6 +32,7 @@ app.add_middleware(
 app.include_router(user_router.router, prefix="/api/user", tags=["用户"])
 app.include_router(merchant_router.router, prefix="/api/merchant", tags=["商户"])
 app.include_router(admin_router.router, prefix="/api/admin", tags=["管理员"])
+app.include_router(merchant_admin_router.router, prefix="/api/admin", tags=["管理员-商户管理"])
 
 @app.get("/")
 async def root():
