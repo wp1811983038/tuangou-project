@@ -1,16 +1,9 @@
 # app/models/product.py
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.db.base import Base
-
-# 商品分类多对多关联表
-product_categories = Table(
-    "product_categories",
-    Base.metadata,
-    Column("product_id", Integer, ForeignKey("products.id"), primary_key=True),
-    Column("category_id", Integer, ForeignKey("categories.id"), primary_key=True)
-)
+from app.db.base_class import Base
+from app.models.category import Category, product_categories  # 导入而不是重复定义
 
 class Product(Base):
     """商品表"""
@@ -46,7 +39,6 @@ class Product(Base):
     reviews = relationship("Review", back_populates="product")
     favorites = relationship("Favorite", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")
-
 
 class ProductImage(Base):
     """商品图片表"""

@@ -98,7 +98,7 @@ class GroupInDB(GroupBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class GroupParticipantBase(BaseModel):
@@ -121,7 +121,7 @@ class GroupParticipant(GroupParticipantBase):
     join_time: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Group(GroupBase):
@@ -140,7 +140,7 @@ class Group(GroupBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class GroupQueryParams(PaginationParams):

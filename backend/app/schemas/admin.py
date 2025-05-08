@@ -43,7 +43,7 @@ class AdminInDB(AdminBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Admin(AdminBase):
@@ -55,7 +55,7 @@ class Admin(AdminBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class AdminLoginRequest(BaseModel):
@@ -102,7 +102,7 @@ class SystemConfig(SystemConfigBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SystemConfigBatchUpdateRequest(BaseModel):
@@ -160,7 +160,7 @@ class Banner(BannerBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class BannerQueryParams(PaginationParams):
@@ -207,7 +207,7 @@ class Notice(NoticeBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class NoticeQueryParams(PaginationParams):

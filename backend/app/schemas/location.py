@@ -46,7 +46,7 @@ class Region(RegionBase):
     children: Optional[List["Region"]] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DeliveryAreaBase(BaseModel):
@@ -82,7 +82,7 @@ class DeliveryArea(DeliveryAreaBase):
     merchant_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DistanceCalculationRequest(BaseModel):

@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.core.config import settings
-from app.db.base import Base
+from app.db.base_class import Base 
 
 # 加载Alembic配置
 config = context.config

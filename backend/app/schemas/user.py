@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
-
+from app.schemas.token import Token
 from pydantic import BaseModel, EmailStr, Field, validator
 
 
@@ -44,7 +44,7 @@ class UserInDB(UserBase):
     last_login_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class User(UserBase):
@@ -56,7 +56,7 @@ class User(UserBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UserProfile(User):
@@ -93,7 +93,7 @@ class UserAddress(BaseModel):
     longitude: Optional[float] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UserAddressCreate(BaseModel):

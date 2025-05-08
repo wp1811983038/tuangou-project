@@ -1,8 +1,9 @@
 # app/models/merchant.py
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.db.base import Base
+from app.db.base_class import Base
+from app.models.category import Category
 
 class Merchant(Base):
     """商户表"""
@@ -37,24 +38,6 @@ class Merchant(Base):
     orders = relationship("Order", back_populates="merchant")
     users = relationship("User", back_populates="merchant")
     categories = relationship("MerchantCategory", back_populates="merchant", cascade="all, delete-orphan")
-
-
-class Category(Base):
-    """商品分类表"""
-    __tablename__ = "categories"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String(64), comment="分类名称")
-    icon = Column(String(255), nullable=True, comment="分类图标")
-    sort_order = Column(Integer, default=0, comment="排序")
-    is_active = Column(Boolean, default=True, comment="是否激活")
-    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
-    
-    # 关系
-    products = relationship("Product", secondary="product_categories", back_populates="categories")
-    merchant_categories = relationship("MerchantCategory", back_populates="category")
-
 
 class MerchantCategory(Base):
     """商户分类关联表"""

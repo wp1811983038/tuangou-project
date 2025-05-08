@@ -1,8 +1,10 @@
+# app/core/events.py
 import logging
 from typing import Callable
 
 from fastapi import FastAPI
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # 添加这行导入
 
 from app.db.session import SessionLocal
 from app.core.config import settings
@@ -26,7 +28,8 @@ def create_start_app_handler(app: FastAPI) -> Callable:
         # 测试数据库连接
         db = SessionLocal()
         try:
-            db.execute("SELECT 1")
+            # 修改这行：使用text()函数包装SQL语句
+            db.execute(text("SELECT 1"))
             logging.info("数据库连接成功")
         except Exception as e:
             logging.error(f"数据库连接失败: {e}")
@@ -37,7 +40,6 @@ def create_start_app_handler(app: FastAPI) -> Callable:
         logging.info(f"应用启动成功，调试模式: {settings.DEBUG}")
     
     return start_app
-
 
 def create_stop_app_handler(app: FastAPI) -> Callable:
     """

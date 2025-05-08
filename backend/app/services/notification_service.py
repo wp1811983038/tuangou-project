@@ -10,8 +10,8 @@ from app.models.group import Group
 from app.models.user import User
 from app.models.merchant import Merchant
 from app.db.session import SessionLocal
-from backend.app.schemas.group import GroupParticipant
-from backend.app.schemas.message import MessageCreate, MessageType
+from app.schemas.group import GroupParticipant
+from app.schemas.message import MessageCreate, MessageType
 
 
 async def send_order_notification(

@@ -11,8 +11,8 @@ from app.models.merchant import Merchant
 from app.models.user import User
 from app.schemas.group import GroupCreate, GroupUpdate
 from app.core.utils import calculate_distance
-from backend.app.db.session import SessionLocal
-from backend.app.models.order import Order
+from app.db.session import SessionLocal
+from app.models.order import Order
 
 
 async def get_group(db: Session, group_id: int, user_id: Optional[int] = None) -> Dict:

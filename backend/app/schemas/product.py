@@ -35,7 +35,7 @@ class ProductSpecification(ProductSpecificationBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ProductImageBase(BaseModel):
@@ -61,7 +61,7 @@ class ProductImage(ProductImageBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ProductBase(BaseModel):
@@ -154,7 +154,7 @@ class ProductInDB(ProductBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Product(ProductBase):
@@ -172,7 +172,7 @@ class Product(ProductBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ProductDetail(Product):

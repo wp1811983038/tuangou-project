@@ -5,8 +5,8 @@ import requests
 
 from app.core.config import settings
 from app.core.utils import calculate_distance
-from backend.app.models.merchant import Merchant
-from backend.app.models.user import Address
+from app.models.merchant import Merchant
+from app.models.user import Address
 
 
 async def search_location(

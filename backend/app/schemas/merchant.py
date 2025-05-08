@@ -32,7 +32,7 @@ class Category(CategoryBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MerchantBase(BaseModel):
@@ -92,7 +92,7 @@ class MerchantInDB(MerchantBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Merchant(MerchantBase):
@@ -106,7 +106,7 @@ class Merchant(MerchantBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MerchantDetail(Merchant):

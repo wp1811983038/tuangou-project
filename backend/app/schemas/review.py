@@ -25,7 +25,7 @@ class ReviewImage(ReviewImageBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ReviewBase(BaseModel):
@@ -75,7 +75,7 @@ class ReviewInDB(ReviewBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Review(ReviewBase):
@@ -96,7 +96,7 @@ class Review(ReviewBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ReviewQueryParams(PaginationParams):

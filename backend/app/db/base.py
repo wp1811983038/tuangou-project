@@ -1,7 +1,7 @@
 # app/db/base.py
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from app.db.base_class import Base
+# 在现有导入之后添加
+from app.models.message import Message
 
 # 导入所有模型，以便Alembic可以发现它们
 from app.models.user import User, Address, Favorite

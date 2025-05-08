@@ -57,7 +57,7 @@ class MessageInDB(MessageBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Message(MessageBase):
@@ -70,7 +70,7 @@ class Message(MessageBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MessageQueryParams(PaginationParams):
