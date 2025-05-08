@@ -1,0 +1,22 @@
+{
+  "description": "团购小程序",
+  "appid": "wxbf578e65f467af0d",
+  "compileType": "miniprogram",
+  "libVersion": "3.8.3",
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "setting": {
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}
