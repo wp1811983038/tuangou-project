@@ -4,6 +4,8 @@ from typing import Dict, List, Optional, Tuple, Any
 from fastapi import HTTPException, status
 from sqlalchemy import func, desc, asc
 from sqlalchemy.orm import Session
+from app.models.admin import Admin  # SQLAlchemy模型
+from app.schemas import admin as admin_schema  # Pydantic模型
 
 from app.core.security import get_password_hash, verify_password
 from app.core.jwt import create_token
@@ -14,21 +16,25 @@ from app.schemas.admin import (
 )
 
 
-async def authenticate_admin(db: Session, username: str, password: str) -> Optional[Admin]:
+async def authenticate_admin(db: Session, username: str, password: str) -> Optional[admin_schema.Admin]:
     """管理员登录认证"""
-    admin = db.query(Admin).filter(Admin.username == username).first()
-    if not admin:
+    # 查询管理员 (SQLAlchemy模型)
+    admin_db = db.query(Admin).filter(Admin.username == username).first()
+    if not admin_db:
         return None
-    if not verify_password(password, admin.hashed_password):
+    if not verify_password(password, admin_db.hashed_password):
         return None
-    if not admin.is_active:
+    if not admin_db.is_active:
         raise HTTPException(status_code=400, detail="管理员账号已被禁用")
     
     # 更新最后登录时间
-    admin.last_login_at = datetime.now()
+    admin_db.last_login_at = datetime.now()
     db.commit()
+    db.refresh(admin_db)  # 刷新以获取最新数据
     
-    return admin
+    # 将SQLAlchemy模型转换为Pydantic模型
+    # 方法1: 使用Pydantic的from_orm方法(推荐)
+    return admin_schema.Admin.from_orm(admin_db)
 
 
 async def create_admin(db: Session, admin_data: AdminCreate) -> Admin:

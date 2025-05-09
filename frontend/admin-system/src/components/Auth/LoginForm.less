@@ -1,0 +1,73 @@
+// frontend/admin-system/src/components/Auth/LoginForm.less
+
+.login-form {
+  .ant-form-item-label {
+    font-weight: 500;
+    
+    label {
+      color: #333;
+    }
+  }
+  
+  .remember-forgot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .login-form-forgot {
+      color: #1677ff;
+      transition: color 0.3s;
+      
+      &:hover {
+        color: #4096ff;
+      }
+    }
+  }
+  
+  .login-button {
+    height: 48px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.3s;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(22, 119, 255, 0.3);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+  }
+  
+  .ant-divider {
+    color: #999;
+    font-size: 12px;
+    margin: 16px 0;
+  }
+  
+  .login-tips {
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+  }
+  
+  .ant-input-affix-wrapper {
+    border-radius: 6px;
+    height: 48px;
+    padding: 4px 11px;
+    
+    .ant-input {
+      font-size: 15px;
+    }
+    
+    .anticon {
+      color: rgba(0, 0, 0, 0.25);
+    }
+  }
+  
+  .ant-checkbox-wrapper {
+    color: #666;
+  }
+}

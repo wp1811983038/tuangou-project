@@ -2,6 +2,9 @@ from typing import Any, List, Optional, Dict
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, BackgroundTasks
 from sqlalchemy.orm import Session
+from app.core.security import create_access_token
+from datetime import timedelta
+from app.core.config import settings
 
 from app import schemas
 from app.api import deps
@@ -24,6 +27,12 @@ async def admin_login(
         password=login_data.password
     )
     
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名或密码错误"
+        )
+    
     # 生成访问令牌
     from app.core.security import create_access_token
     from datetime import timedelta
@@ -35,15 +44,15 @@ async def admin_login(
         expires_delta=access_token_expires
     )
     
+    # 返回字典而不是直接返回对象
     return {
-        "admin": admin,
+        "admin": admin.dict(),  # 使用dict()方法转换为字典
         "token": {
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         }
     }
-
 
 @router.post("/", response_model=schemas.admin.Admin, dependencies=[Depends(deps.get_current_admin)])
 async def create_admin(
