@@ -6,12 +6,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
 from app.core.constants import CACHE_EXPIRE_TIME, CACHE_KEY_PREFIX
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, verify_password, get_password_hash
 from app.core.redis import RedisClient
 from app.crud import crud_user, crud_address
-from app.models.user import User, Address
-from app.schemas.user import UserCreate, UserUpdate, UserAddressCreate, UserAddressUpdate
+from app.models.user import User, Address, Favorite
+from app.models.order import Order
+from app.models.review import Review
+from app.models.product import Product
+from app.schemas.user import UserCreate, UserUpdate, UserAddressCreate, UserAddressUpdate, UserRegister, MerchantRegister
 from app.schemas.token import Token
+from app.schemas.wechat import WxLoginInfo
+from app.services import wechat_service
 
 
 async def authenticate_user(db: Session, open_id: str) -> Optional[User]:
@@ -22,6 +27,35 @@ async def authenticate_user(db: Session, open_id: str) -> Optional[User]:
     if not user.is_active:
         raise HTTPException(status_code=400, detail="用户已被禁用")
     return user
+
+
+async def authenticate_by_phone(db: Session, phone: str, password: str) -> Optional[User]:
+    """通过手机号和密码认证用户"""
+    user = db.query(User).filter(User.phone == phone).first()
+    if not user:
+        return None
+    if not user.hashed_password:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="用户已被禁用")
+    
+    # 更新最后登录时间
+    user.last_login_at = datetime.now()
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+
+async def code2session(code: str) -> Dict:
+    """微信登录，获取用户openid和session_key"""
+    try:
+        result = await wechat_service.code2session(code)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"微信登录失败: {str(e)}")
 
 
 async def login_or_create_user(
@@ -81,6 +115,99 @@ async def login_or_create_user(
     }, CACHE_EXPIRE_TIME["user"])
     
     return user, is_new_user, token
+
+
+async def create_user_with_password(db: Session, user_data: UserRegister) -> User:
+    """创建带密码的用户账号"""
+    # 检查手机号是否已存在
+    existing_user = db.query(User).filter(User.phone == user_data.phone).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="手机号已被注册")
+    
+    # 创建新用户
+    hashed_password = get_password_hash(user_data.password)
+    user = User(
+        phone=user_data.phone,
+        hashed_password=hashed_password,
+        nickname=user_data.nickname,
+        avatar_url=user_data.avatar_url,
+        gender=user_data.gender,
+        is_active=True,
+        is_admin=False
+    )
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+
+async def create_merchant_with_password(db: Session, merchant_data: MerchantRegister) -> Tuple[User, int]:
+    """创建商户账号"""
+    # 检查手机号是否已存在
+    existing_user = db.query(User).filter(User.phone == merchant_data.phone).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="手机号已被注册")
+    
+    # 创建商户记录
+    from app.models.merchant import Merchant
+    merchant = Merchant(
+        name=merchant_data.merchant_name,
+        contact_name=merchant_data.contact_name,
+        contact_phone=merchant_data.contact_phone,
+        business_license=merchant_data.business_license,
+        status="pending",  # 默认为待审核状态
+    )
+    db.add(merchant)
+    db.flush()  # 获取商户ID
+    
+    # 创建用户记录
+    hashed_password = get_password_hash(merchant_data.password)
+    user = User(
+        phone=merchant_data.phone,
+        hashed_password=hashed_password,
+        nickname=merchant_data.nickname,
+        avatar_url=merchant_data.avatar_url,
+        gender=merchant_data.gender,
+        is_active=True,
+        is_admin=False,
+        merchant_id=merchant.id
+    )
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return user, merchant.id
+
+
+async def reset_password(
+    db: Session, 
+    reset_data: dict, 
+    user_id: Optional[int] = None
+) -> bool:
+    """重置密码"""
+    # 如果提供了用户ID，则使用ID查询
+    if user_id:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        # 验证旧密码
+        if reset_data.old_password and not verify_password(reset_data.old_password, user.hashed_password):
+            raise HTTPException(status_code=400, detail="旧密码不正确")
+    else:
+        # 通过手机号查询用户
+        user = db.query(User).filter(User.phone == reset_data.phone).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # 更新密码
+    user.hashed_password = get_password_hash(reset_data.new_password)
+    db.commit()
+    
+    return True
 
 
 async def get_user_profile(db: Session, user_id: int) -> Dict:
@@ -190,7 +317,7 @@ async def delete_user_address(db: Session, user_id: int, address_id: int) -> boo
         raise HTTPException(status_code=404, detail="地址不存在")
     
     was_default = address.is_default
-    result = crud_address.remove(db, id=address_id)
+    result = crud_address.delete(db, id=address_id)
     
     # 如果删除的是默认地址，设置一个新的默认地址
     if was_default:
@@ -227,8 +354,6 @@ async def set_default_address(db: Session, user_id: int, address_id: int) -> Add
 
 async def toggle_favorite(db: Session, user_id: int, product_id: int) -> bool:
     """收藏或取消收藏商品"""
-    from app.models.user import Favorite
-    
     # 检查商品是否存在
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
@@ -258,9 +383,6 @@ async def toggle_favorite(db: Session, user_id: int, product_id: int) -> bool:
 
 async def get_user_favorites(db: Session, user_id: int, skip: int = 0, limit: int = 20) -> List[Dict]:
     """获取用户收藏的商品列表"""
-    from app.models.user import Favorite
-    from app.models.product import Product
-    
     favorites = db.query(
         Favorite, Product
     ).join(
@@ -283,3 +405,47 @@ async def get_user_favorites(db: Session, user_id: int, skip: int = 0, limit: in
         })
     
     return result
+
+
+async def bind_phone(db: Session, user_id: int, phone: str) -> User:
+    """绑定手机号"""
+    # 检查手机号是否已被使用
+    existing_user = db.query(User).filter(User.phone == phone).first()
+    if existing_user and existing_user.id != user_id:
+        raise HTTPException(status_code=400, detail="手机号已被其他账号使用")
+    
+    # 更新用户手机号
+    user = crud_user.get(db, id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    user.phone = phone
+    db.commit()
+    db.refresh(user)
+    
+    # 更新缓存
+    cache_key = f"{CACHE_KEY_PREFIX['user']}{user_id}"
+    RedisClient.delete(cache_key)
+    
+    return user
+
+
+async def unbind_phone(db: Session, user_id: int) -> User:
+    """解绑手机号"""
+    user = crud_user.get(db, id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # 检查是否有微信绑定，如果没有微信不允许解绑手机号
+    if not user.open_id:
+        raise HTTPException(status_code=400, detail="必须绑定微信才能解绑手机号")
+    
+    user.phone = None
+    db.commit()
+    db.refresh(user)
+    
+    # 更新缓存
+    cache_key = f"{CACHE_KEY_PREFIX['user']}{user_id}"
+    RedisClient.delete(cache_key)
+    
+    return user

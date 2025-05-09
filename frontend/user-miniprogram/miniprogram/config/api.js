@@ -13,7 +13,7 @@ const BASE_URLS = {
 };
 
 // 导出API基础URL
-export const apiBaseUrl = BASE_URLS[MODE] + '/v1';
+export const apiBaseUrl = BASE_URLS[MODE] + '/api/v1';
 
 // API路径定义
 export const apiPath = {

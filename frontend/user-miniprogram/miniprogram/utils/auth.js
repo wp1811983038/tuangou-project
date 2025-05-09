@@ -3,7 +3,7 @@
  */
 
 import { post } from './request';
-import { apiPath, formatUrl } from '../config/api';
+import { apiPath, apiBaseUrl } from '../config/api'; 
 
 // Token存储键名
 const TOKEN_KEY = 'token';
@@ -149,6 +149,8 @@ export const wxLoginAndGetToken = async (userInfo = null) => {
  */
 export const phoneLogin = async (phone, password) => {
   try {
+    console.log('发送手机号登录请求...');
+    
     const loginData = {
       phone: phone,
       password: password
@@ -156,7 +158,9 @@ export const phoneLogin = async (phone, password) => {
     
     const result = await post(apiPath.auth.phoneLogin, loginData);
     
-    // 存储token和用户ID
+    console.log('登录成功，接收到结果:', result);
+    
+    // 存储 token 和用户 ID
     if (result.access_token) {
       setToken(result.access_token);
       
@@ -167,7 +171,11 @@ export const phoneLogin = async (phone, password) => {
         app.globalData.hasLogin = true;
         
         // 更新用户信息
-        await getUserDetail();
+        try {
+          await getUserDetail();
+        } catch (err) {
+          console.error('获取用户详情失败', err);
+        }
       }
     }
     

@@ -60,3 +60,56 @@ def get_password_hash(password: str) -> str:
         密码哈希字符串
     """
     return pwd_context.hash(password)
+
+
+def decode_token(token: str) -> Dict:
+    """
+    解码JWT令牌
+
+    Args:
+        token: JWT令牌字符串
+
+    Returns:
+        解码后的数据
+    """
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+
+
+def generate_password_reset_token(email: str) -> str:
+    """
+    生成密码重置令牌
+
+    Args:
+        email: 用户邮箱
+
+    Returns:
+        密码重置令牌
+    """
+    delta = timedelta(hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
+    now = datetime.utcnow()
+    expires = now + delta
+    exp = expires.timestamp()
+    encoded_jwt = jwt.encode(
+        {"exp": exp, "nbf": now, "sub": email, "type": "password_reset"},
+        settings.SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    return encoded_jwt
+
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """
+    验证密码重置令牌
+
+    Args:
+        token: 密码重置令牌
+
+    Returns:
+        令牌中的电子邮件，如果无效则返回None
+    """
+    try:
+        decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        assert decoded_token["type"] == "password_reset"
+        return decoded_token["sub"]
+    except (jwt.JWTError, AssertionError):
+        return None
