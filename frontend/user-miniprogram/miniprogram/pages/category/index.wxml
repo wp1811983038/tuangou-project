@@ -1,0 +1,55 @@
+<!--pages/category/index.wxml-->
+<view class="container">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <view class="search-input" bindtap="goToSearch">
+      <icon type="search" size="14" color="#999"></icon>
+      <text class="search-placeholder">搜索商家、商品</text>
+    </view>
+  </view>
+
+  <view class="category-container">
+    <!-- 左侧分类导航 -->
+    <scroll-view class="category-sidebar" scroll-y="{{true}}">
+      <view 
+        wx:for="{{categories}}" 
+        wx:key="id" 
+        class="sidebar-item {{currentCategory.id === item.id ? 'active' : ''}}"
+        bindtap="switchCategory"
+        data-id="{{item.id}}"
+      >
+        {{item.name}}
+      </view>
+    </scroll-view>
+
+    <!-- 右侧商户列表 -->
+    <scroll-view class="content-list" scroll-y="{{true}}" bindscrolltolower="loadMore">
+      <!-- 商户列表 -->
+      <block wx:if="{{merchants.length > 0}}">
+        <view class="merchant-item" wx:for="{{merchants}}" wx:key="id" bindtap="goToMerchant" data-id="{{item.id}}">
+          <image class="merchant-logo" src="{{item.logo}}" mode="aspectFill"></image>
+          <view class="merchant-info">
+            <view class="merchant-name">{{item.name}}</view>
+            <view class="merchant-rating">
+              <text class="rating">{{item.rating}}分</text>
+              <text class="distance" wx:if="{{item.distance}}">{{item.distance}}km</text>
+            </view>
+            <view class="merchant-desc">{{item.brief}}</view>
+          </view>
+        </view>
+      </block>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{merchants.length === 0 && !loading}}">
+        <image class="empty-icon" src="/assets/images/logo.png" mode="aspectFit"></image>
+        <text class="empty-text">暂无商家</text>
+      </view>
+
+      <!-- 加载状态 -->
+      <view class="loading-container" wx:if="{{loading}}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">加载中...</text>
+      </view>
+    </scroll-view>
+  </view>
+</view>

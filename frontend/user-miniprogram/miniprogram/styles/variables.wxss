@@ -1,0 +1,97 @@
+/**
+ * styles/variables.wxss - CSS变量定义
+ */
+
+page {
+  /* 主题色 */
+  --color-primary: #FF4D4F;
+  --color-primary-light: #FFADAD;
+  --color-primary-dark: #E64342;
+  
+  /* 功能色 */
+  --color-success: #52C41A;
+  --color-warning: #FAAD14;
+  --color-danger: #F5222D;
+  --color-info: #1890FF;
+  
+  /* 中性色 */
+  --color-text-primary: #333333;
+  --color-text-regular: #666666;
+  --color-text-secondary: #999999;
+  --color-text-placeholder: #CCCCCC;
+  
+  /* 背景色 */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F8F8F8;
+  --color-bg-tertiary: #F5F5F5;
+  --color-bg-mask: rgba(0, 0, 0, 0.45);
+  
+  /* 边框色 */
+  --color-border-base: #EEEEEE;
+  --color-border-light: #F5F5F5;
+  --color-border-dark: #DDDDDD;
+  
+  /* 文字大小 */
+  --font-size-xs: 20rpx;
+  --font-size-sm: 24rpx;
+  --font-size-base: 28rpx;
+  --font-size-lg: 32rpx;
+  --font-size-xl: 36rpx;
+  --font-size-xxl: 40rpx;
+  
+  /* 圆角 */
+  --radius-sm: 4rpx;
+  --radius-base: 8rpx;
+  --radius-lg: 12rpx;
+  --radius-circle: 50%;
+  
+  /* 阴影 */
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8rpx 16rpx rgba(0, 0, 0, 0.12);
+  
+  /* 间距 */
+  --spacing-xs: 10rpx;
+  --spacing-sm: 20rpx;
+  --spacing-md: 30rpx;
+  --spacing-lg: 40rpx;
+  --spacing-xl: 50rpx;
+  
+  /* 动画时间 */
+  --transition-time-fast: 0.2s;
+  --transition-time-base: 0.3s;
+  --transition-time-slow: 0.5s;
+  
+  /* z-index层级 */
+  --z-index-normal: 1;
+  --z-index-popup: 10;
+  --z-index-mask: 100;
+  --z-index-modal: 1000;
+  --z-index-toast: 2000;
+  
+  /* 组件高度 */
+  --height-btn-sm: 60rpx;
+  --height-btn-base: 80rpx;
+  --height-btn-lg: 88rpx;
+  --height-input: 80rpx;
+  --height-cell: 100rpx;
+  --height-tab: 80rpx;
+  --height-tabbar: 110rpx;
+  --height-navbar: 88rpx;
+
+  /* 边框 */
+  --border-width-base: 1rpx;
+  --border-width-bold: 2rpx;
+  --border-style-base: solid;
+  --border-color-base: var(--color-border-base);
+  --border-base: var(--border-width-base) var(--border-style-base) var(--border-color-base);
+  
+  /* 页面边距 */
+  --page-padding: 30rpx;
+  
+  /* 项目特定变量 */
+  --group-progress-color: var(--color-primary);
+  --product-grid-columns: 2;
+  --product-card-height: 260rpx;
+  --merchant-logo-size: 120rpx;
+}

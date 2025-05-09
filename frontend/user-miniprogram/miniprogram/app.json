@@ -1,1 +1,100 @@
-{"pages": ["pages/index/index"]}
+{
+  "pages": [
+    "pages/login/index",
+    "pages/index/index",
+    "pages/category/index",
+    "pages/my-groups/index",
+    "pages/cart/index",
+    "pages/profile/index",
+    "pages/merchant/detail/index",
+    "pages/product/detail/index",
+    "pages/product/list/index",
+    "pages/group/detail/index",
+    "pages/group/list/index",
+    "pages/order/create/index",
+    "pages/order/detail/index",
+    "pages/order/list/index",
+    "pages/order/payment/index",
+    "pages/profile/settings/index",
+    "pages/search/index",
+    "pages/review/create/index",
+    "pages/review/list/index",
+    "pages/address/list/index",
+    "pages/address/edit/index",
+    "pages/messages/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#FF4D4F",
+    "navigationBarTitleText": "团购小程序",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F8F8F8",
+    "enablePullDownRefresh": false
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#FF4D4F",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/icons/home.png",
+        "selectedIconPath": "assets/icons/home-active.png"
+      },
+      {
+        "pagePath": "pages/category/index",
+        "text": "分类",
+        "iconPath": "assets/icons/category.png",
+        "selectedIconPath": "assets/icons/category-active.png"
+      },
+      {
+        "pagePath": "pages/my-groups/index",
+        "text": "团购",
+        "iconPath": "assets/icons/group.png",
+        "selectedIconPath": "assets/icons/group-active.png"
+      },
+      {
+        "pagePath": "pages/cart/index",
+        "text": "购物车",
+        "iconPath": "assets/icons/cart.png",
+        "selectedIconPath": "assets/icons/cart-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "assets/icons/profile.png",
+        "selectedIconPath": "assets/icons/profile-active.png"
+      }
+    ]
+  },
+  "usingComponents": {
+    "product-card": "/components/product-card/index",
+    "group-card": "/components/group-card/index",
+    "merchant-card": "/components/merchant-card/index",
+    "search-bar": "/components/search-bar/index",
+    "loading": "/components/loading/index",
+    "empty-state": "/components/empty-state/index",
+    "price": "/components/price/index",
+    "count-down": "/components/count-down/index"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "scope.userLocation": {
+      "desc": "您的位置信息将用于获取附近的商户和配送服务"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
+  "requiredBackgroundModes": ["location"],
+  "debug": false,
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "useExtendedLib": {
+    "weui": true
+  },
+  "resizable": false,
+  "darkmode": false
+}

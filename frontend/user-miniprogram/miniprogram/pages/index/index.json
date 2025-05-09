@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "团购小程序",
+  "enablePullDownRefresh": true,
+  "usingComponents": {},
+  "backgroundColor": "#F8F8F8"
+}

@@ -1,0 +1,8 @@
+<!--pages/my-groups/index.wxml-->
+<view class="container">
+  <view class="page-content">
+    <view class="page-title">我的团购</view>
+    <view class="page-desc">这里会显示您参与的所有团购</view>
+    <image class="placeholder-image" src="/assets/images/logo.png" mode="aspectFit"></image>
+  </view>
+</view>
