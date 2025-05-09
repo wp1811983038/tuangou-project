@@ -118,3 +118,55 @@ class UserAddressCreate(BaseModel):
 class UserAddressUpdate(UserAddressCreate):
     """更新用户地址请求模型"""
     pass
+
+
+class UserRegister(BaseModel):
+    """用户注册请求模型"""
+    phone: str = Field(..., min_length=11, max_length=11)
+    password: str = Field(..., min_length=6, max_length=32)
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
+    gender: Optional[int] = 0
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if not v.isdigit() or len(v) != 11:
+            raise ValueError('手机号格式不正确')
+        return v
+        
+    @validator('password')
+    def validate_password(cls, v):
+        # 密码至少包含数字和字母
+        if not any(c.isdigit() for c in v) or not any(c.isalpha() for c in v):
+            raise ValueError('密码必须包含数字和字母')
+        return v
+
+class PhoneLoginRequest(BaseModel):
+    """手机号登录请求模型"""
+    phone: str = Field(..., min_length=11, max_length=11)
+    password: str = Field(..., min_length=6)
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if not v.isdigit() or len(v) != 11:
+            raise ValueError('手机号格式不正确')
+        return v
+
+class PasswordResetRequest(BaseModel):
+    """密码重置请求模型"""
+    phone: str
+    old_password: Optional[str] = None
+    new_password: str = Field(..., min_length=6, max_length=32)
+    
+    @validator('new_password')
+    def validate_password(cls, v):
+        if not any(c.isdigit() for c in v) or not any(c.isalpha() for c in v):
+            raise ValueError('密码必须包含数字和字母')
+        return v
+
+class MerchantRegister(UserRegister):
+    """商户注册请求模型"""
+    merchant_name: str
+    contact_name: str
+    contact_phone: str
+    business_license: Optional[str] = None
