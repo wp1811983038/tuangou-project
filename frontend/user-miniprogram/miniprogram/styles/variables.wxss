@@ -2,7 +2,7 @@
  * styles/variables.wxss - CSS变量定义
  */
 
-page {
+ page {
   /* 主题色 */
   --color-primary: #FF4D4F;
   --color-primary-light: #FFADAD;

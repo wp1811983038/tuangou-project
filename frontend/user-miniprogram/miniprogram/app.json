@@ -21,7 +21,15 @@
     "pages/review/list/index",
     "pages/address/list/index",
     "pages/address/edit/index",
-    "pages/messages/index"
+    "pages/messages/index",
+    "components/product-card/index",
+    "components/group-card/index",
+    "components/merchant-card/index",
+    "components/search-bar/index",
+    "components/loading/index",
+    "components/empty-state/index",
+    "components/price/index",
+    "components/count-down/index"
   ],
   "window": {
     "backgroundTextStyle": "light",
@@ -88,7 +96,9 @@
   "requiredPrivateInfos": [
     "getLocation"
   ],
-  "requiredBackgroundModes": ["location"],
+  "requiredBackgroundModes": [
+    "location"
+  ],
   "debug": false,
   "style": "v2",
   "sitemapLocation": "sitemap.json",

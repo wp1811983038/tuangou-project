@@ -15,6 +15,7 @@ class User(Base):
     avatar_url = Column(String(255), nullable=True, comment="头像URL")
     gender = Column(Integer, default=0, comment="性别: 0-未知, 1-男, 2-女")
     phone = Column(String(20), nullable=True, index=True, comment="手机号码")
+    hashed_password = Column(String(128), nullable=True, comment="密码哈希")
     is_active = Column(Boolean, default=True, comment="是否激活")
     is_admin = Column(Boolean, default=False, comment="是否为管理员")
     merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=True, comment="关联商户ID")
