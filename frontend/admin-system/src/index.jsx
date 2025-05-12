@@ -6,6 +6,7 @@ import App from './App';
 import './index.css'; // 添加这行
 import './global.less';
 // import 'antd/dist/antd.css';
+import 'antd/dist/reset.css';
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
