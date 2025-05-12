@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { store } from './redux/store';
 import App from './App';
+import './index.css'; // 添加这行
 import './global.less';
+// import 'antd/dist/antd.css';
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

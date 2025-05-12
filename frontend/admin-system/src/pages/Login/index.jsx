@@ -7,7 +7,7 @@ import './index.less';
 
 // 导入图片
 // (确保在public/images目录下有这些图片，或者调整路径)
-import headerLogo from '../../assets/images/logo.png'; // 如果没有可以注释掉这行
+// import headerLogo from '../../assets/images/logo.png'; // 如果没有可以注释掉这行
 
 const LoginPage = () => {
   const navigate = useNavigate();

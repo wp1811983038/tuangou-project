@@ -38,6 +38,8 @@
     ]
   },
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "craco-less": "^3.0.1",
     "less": "^4.1.3",
     "less-loader": "^11.1.0"
   },
