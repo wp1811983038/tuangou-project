@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from app.crud import crud_user  # 导入crud_user实例
 
 from app.core.config import settings
 from app.core.security import ALGORITHM
@@ -14,6 +15,7 @@ from app.models.merchant import Merchant
 from app.schemas.token import TokenPayload
 from app.core.redis import RedisClient
 from app.core.constants import CACHE_EXPIRE_TIME, CACHE_KEY_PREFIX
+from app.models.admin import Admin  # 添加此导入
 
 # OAuth2 密码流认证
 oauth2_scheme = OAuth2PasswordBearer(
@@ -169,26 +171,44 @@ def get_current_merchant(
     return current_user, merchant
 
 
+# 通常在app/api/deps.py
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="无法验证凭据",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+from app.models.admin import Admin  # 添加此导入
+
 def get_current_admin(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
     """获取当前管理员用户"""
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        admin_id: str = payload.get("sub")
+        if not admin_id:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
     
-    # 打印完整的用户信息用于调试
-    print("-" * 50)
-    print("当前用户数据:")
-    for key, value in vars(current_user).items():
-        if not key.startswith('_'):
-            print(f"  {key}: {value}")
-    print("-" * 50)
+    # 从Admin模型查询而不是User模型
+    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    if not admin:
+        raise credentials_exception
     
-    # 原有的检查代码
-    if not current_user.is_admin:
+    # 验证管理员状态
+    if not admin.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="需要管理员权限"
+            detail="管理员账号已禁用"
         )
-    return current_user
+    
+    return admin
 
 
 def get_pagination_params(

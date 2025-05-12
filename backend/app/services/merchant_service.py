@@ -10,6 +10,7 @@ from app.models.merchant import Merchant, MerchantCategory, Category
 from app.models.product import Product
 from app.schemas.merchant import MerchantCreate, MerchantUpdate, CategoryCreate, CategoryUpdate
 from app.core.utils import calculate_distance
+from app.models.user import User
 
 
 async def get_merchant(db: Session, merchant_id: int) -> Merchant:
@@ -103,11 +104,24 @@ async def create_merchant(db: Session, merchant_data: MerchantCreate, user_id: i
     return merchant
 
 
-async def update_merchant(db: Session, merchant_id: int, merchant_data: MerchantUpdate) -> Merchant:
+async def update_merchant(
+    db: Session, 
+    merchant_id: int, 
+    merchant_data: MerchantUpdate, 
+    user_id: int = None,
+    is_admin: bool = False  # 添加管理员标志参数
+) -> Merchant:
     """更新商户信息"""
     merchant = crud_merchant.get(db, id=merchant_id)
     if not merchant:
         raise HTTPException(status_code=404, detail="商户不存在")
+    
+    # 添加管理员检查：如果是管理员调用，则跳过权限检查
+    if not is_admin:  # 非管理员才检查权限
+        # 检查用户是否有权限更新此商户（只有商户自己可以更新）
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.merchant_id != merchant_id:
+            raise HTTPException(status_code=403, detail="没有权限更新其他商户的信息")
     
     # 更新商户基本信息
     updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=merchant_data)
@@ -287,6 +301,7 @@ async def update_category(db: Session, category_id: int, category_data: Category
     
     return crud_category.update(db, db_obj=category, obj_in=category_data)
 
+from app.models.product import product_categories
 
 async def delete_category(db: Session, category_id: int) -> bool:
     """删除分类"""
@@ -303,9 +318,9 @@ async def delete_category(db: Session, category_id: int) -> bool:
         raise HTTPException(status_code=400, detail="分类已被商户使用，无法删除")
     
     # 检查是否有商品使用此分类
-    product_count = db.query(func.count(ProductCategory.id)).filter(
-        ProductCategory.category_id == category_id
-    ).scalar() or 0
+    product_count = db.query(func.count(product_categories.c.category_id)).filter(
+    product_categories.c.category_id == category_id
+).scalar() or 0
     
     if product_count > 0:
         raise HTTPException(status_code=400, detail="分类已被商品使用，无法删除")

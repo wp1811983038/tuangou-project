@@ -1,6 +1,6 @@
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
 
 from app import schemas
@@ -83,15 +83,23 @@ async def create_merchant(
     return merchant
 
 #管理端更新
-@router.put("/{merchant_id}", response_model=schemas.merchant.Merchant, dependencies=[Depends(deps.get_current_admin)])
-async def update_merchant_by_admin(
+@router.put("/{merchant_id}", response_model=schemas.merchant.Merchant)
+async def update_merchant(
     merchant_data: schemas.merchant.MerchantUpdate,
     merchant_id: int = Path(..., ge=1),
+    current_user: schemas.user.User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    更新商户信息（需要管理员权限）
+    更新商户信息（管理员可更新任意商户，商户只能更新自己）
     """
+    # 检查用户是否有权限更新此商户
+    if not current_user.is_admin and (not current_user.merchant_id or current_user.merchant_id != merchant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="没有权限更新其他商户的信息"
+        )
+    
     return await merchant_service.update_merchant(
         db=db,
         merchant_id=merchant_id,
@@ -111,10 +119,26 @@ async def update_merchant(
     return await merchant_service.update_merchant(
         db=db,
         merchant_id=current_user.merchant_id,
-        merchant_data=merchant_data
+        merchant_data=merchant_data,
+        user_id=current_user.id
     )
+    
 
-
+@router.put("/{merchant_id}", response_model=schemas.merchant.Merchant, dependencies=[Depends(deps.get_current_admin)])
+async def update_merchant_by_admin(
+    merchant_data: schemas.merchant.MerchantUpdate,
+    merchant_id: int = Path(..., ge=1),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    更新商户信息（需要管理员权限）
+    """
+    return await merchant_service.update_merchant(
+        db=db,
+        merchant_id=merchant_id,
+        merchant_data=merchant_data,
+        is_admin=True  # 关键修改：标记为管理员调用
+    )
 
 @router.get("/categories/all", response_model=List[schemas.merchant.Category])
 async def get_all_categories(
