@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Form, Input, Select, InputNumber, Upload, Button, Space, Row, Col, 
-  Card, Divider, message 
+  Card, Divider, message, Tooltip 
 } from 'antd';
 import { 
-   LoadingOutlined, PlusOutlined 
+  LoadingOutlined, PlusOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 
 import { fetchMerchantCategories } from '../../../api/merchant';
@@ -13,35 +13,118 @@ import { fetchMerchantCategories } from '../../../api/merchant';
 const { Option } = Select;
 const { TextArea } = Input;
 
-const MerchantForm = ({ initialValues, onFinish, loading }) => {
+const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
   const [form] = Form.useForm();
   const [categories, setCategories] = useState([]);
-  const [logoUrl, setLogoUrl] = useState(initialValues?.logo || '');
-  const [coverUrl, setCoverUrl] = useState(initialValues?.cover || '');
-  const [licenseUrl, setLicenseUrl] = useState(initialValues?.license_image || '');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [licenseUrl, setLicenseUrl] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
+  // 传递表单引用给父组件
+  useEffect(() => {
+    if (formRef) {
+      formRef(form);
+    }
+  }, [form, formRef]);
+  
   // 加载商户分类
   const loadCategories = async () => {
     try {
+      setCategoriesLoading(true);
       const response = await fetchMerchantCategories();
-      setCategories(response);
+      console.log("加载商户分类成功:", response);
+      setCategories(response || []);
     } catch (error) {
+      console.error('获取商户分类失败:', error);
       message.error('获取商户分类失败');
-      console.error(error);
+      setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
   // 初始加载
   useEffect(() => {
     loadCategories();
+  }, []);
+  
+  // 处理初始值
+  useEffect(() => {
+    // 打印完整的初始值对象，用于调试
+    console.log("MerchantForm 收到的初始值:", initialValues);
     
-    // 如果有初始值，设置表单的初始值
-    if (initialValues) {
-      form.setFieldsValue({
-        ...initialValues,
-        category_ids: initialValues.categories?.map(cat => cat.id) || []
-      });
+    // 设置表单字段值
+    if (initialValues && initialValues.id) {
+      console.log("设置表单字段值...");
+      
+      // 设置图片URL
+      if (initialValues.logo) {
+        console.log("设置Logo URL:", initialValues.logo);
+        setLogoUrl(initialValues.logo);
+      }
+      
+      if (initialValues.cover) {
+        console.log("设置Cover URL:", initialValues.cover);
+        setCoverUrl(initialValues.cover);
+      }
+      
+      if (initialValues.license_image) {
+        console.log("设置License URL:", initialValues.license_image);
+        setLicenseUrl(initialValues.license_image);
+      }
+      
+      // 手动设置所有字段值
+      try {
+        // 创建要设置的表单值对象
+        const formValues = {
+          name: initialValues.name || '',
+          contact_name: initialValues.contact_name || '',
+          contact_phone: initialValues.contact_phone || '',
+          business_hours: initialValues.business_hours || '',
+          description: initialValues.description || '',
+          category_ids: initialValues.category_ids || [],
+          province: initialValues.province || '',
+          city: initialValues.city || '',
+          district: initialValues.district || '',
+          address: initialValues.address || '',
+          latitude: initialValues.latitude || null,
+          longitude: initialValues.longitude || null,
+          license_number: initialValues.license_number || '',
+          license_image: initialValues.license_image || '',
+          logo: initialValues.logo || '',
+          cover: initialValues.cover || '',
+          status: initialValues.status !== undefined ? initialValues.status : 1,
+          commission_rate: initialValues.commission_rate !== undefined ? initialValues.commission_rate : 0.05,
+          rating: initialValues.rating !== undefined ? initialValues.rating : 5.0
+        };
+
+        console.log("设置表单值:", formValues);
+        form.setFieldsValue(formValues);
+        
+        // 在短暂延迟后再次检查表单值是否已设置
+        setTimeout(() => {
+          const currentValues = form.getFieldsValue();
+          console.log("表单当前值:", currentValues);
+          
+          // 检查关键字段是否正确设置
+          const nameField = form.getFieldValue('name');
+          if (!nameField && initialValues.name) {
+            console.warn("名称字段未能正确设置，再次尝试");
+            form.setFieldValue('name', initialValues.name);
+          }
+          
+          // 再次设置图片URL (以防延迟加载导致状态未及时更新)
+          if (initialValues.logo && !logoUrl) setLogoUrl(initialValues.logo);
+          if (initialValues.cover && !coverUrl) setCoverUrl(initialValues.cover);
+          if (initialValues.license_image && !licenseUrl) setLicenseUrl(initialValues.license_image);
+        }, 300);
+        
+      } catch (error) {
+        console.error("设置表单值出错:", error);
+        message.warning('自动填充表单数据出错，请手动检查数据');
+      }
     }
   }, [initialValues, form]);
 
@@ -69,37 +152,34 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
     formData.append('file', file);
     
     try {
-      // 调用上传API（需要后端支持）
-      const response = await fetch('/api/v1/upload', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token')}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('上传失败');
-      }
-      
-      const result = await response.json();
-      
-      // 根据字段名设置不同的URL
-      if (filename === 'logo') {
-        setLogoUrl(result.url);
-        form.setFieldsValue({ logo: result.url });
-      } else if (filename === 'cover') {
-        setCoverUrl(result.url);
-        form.setFieldsValue({ cover: result.url });
-      } else if (filename === 'license_image') {
-        setLicenseUrl(result.url);
-        form.setFieldsValue({ license_image: result.url });
-      }
-      
-      onSuccess(result, file);
+      // 模拟上传成功 (实际项目中应调用真实API)
+      setTimeout(() => {
+        // 创建一个本地URL用于预览
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          const base64 = reader.result;
+          
+          // 根据字段名设置不同的URL
+          if (filename === 'logo') {
+            setLogoUrl(base64);
+            form.setFieldsValue({ logo: base64 });
+          } else if (filename === 'cover') {
+            setCoverUrl(base64);
+            form.setFieldsValue({ cover: base64 });
+          } else if (filename === 'license_image') {
+            setLicenseUrl(base64);
+            form.setFieldsValue({ license_image: base64 });
+          }
+          
+          if (onSuccess) onSuccess({ url: base64 }, file);
+          message.success(`${file.name} 上传成功`);
+        };
+      }, 500);
     } catch (error) {
       console.error('上传错误:', error);
-      onError(error);
+      if (onError) onError(error);
+      message.error(`${file.name} 上传失败`);
     } finally {
       setUploadLoading(false);
     }
@@ -112,17 +192,28 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
       <div style={{ marginTop: 8 }}>上传</div>
     </div>
   );
+  
+  // 表单提交处理
+  const handleFinish = (values) => {
+    console.log("表单提交值:", values);
+    // 触发父组件的提交处理
+    if (onFinish) {
+      onFinish(values);
+    }
+  };
 
   return (
     <Form
       form={form}
       layout="vertical"
-      onFinish={onFinish}
-      initialValues={initialValues || {
+      onFinish={handleFinish}
+      initialValues={{
         status: 1,
         commission_rate: 0.05,
-        rating: 5.0
+        rating: 5.0,
+        ...initialValues // 确保初始值也在这里传入
       }}
+      requiredMark={true}
     >
       <Row gutter={24}>
         <Col span={16}>
@@ -190,6 +281,8 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 mode="multiple"
                 placeholder="请选择经营分类"
                 style={{ width: '100%' }}
+                loading={categoriesLoading}
+                optionFilterProp="children"
               >
                 {categories.map(category => (
                   <Option key={category.id} value={category.id}>
@@ -244,6 +337,7 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 <Form.Item
                   name="latitude"
                   label="纬度"
+                  tooltip="纬度范围: -90 到 90"
                 >
                   <InputNumber 
                     style={{ width: '100%' }} 
@@ -258,6 +352,7 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 <Form.Item
                   name="longitude"
                   label="经度"
+                  tooltip="经度范围: -180 到 180"
                 >
                   <InputNumber 
                     style={{ width: '100%' }} 
@@ -282,13 +377,6 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
             <Form.Item
               name="license_image"
               label="营业执照图片"
-              valuePropName="fileList"
-              getValueFromEvent={(e) => {
-                if (Array.isArray(e)) {
-                  return e;
-                }
-                return e?.fileList;
-              }}
             >
               <Upload
                 name="license_image"
@@ -300,7 +388,15 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 }
               >
                 {licenseUrl ? (
-                  <img src={licenseUrl} alt="营业执照" style={{ width: '100%' }} />
+                  <img 
+                    src={licenseUrl} 
+                    alt="营业执照" 
+                    style={{ width: '100%' }} 
+                    onError={(e) => {
+                      console.warn('执照图片加载失败:', licenseUrl);
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlOWVjZWYiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIj7miqXnmb08L3RleHQ+PC9zdmc+';
+                    }}
+                  />
                 ) : (
                   uploadButton
                 )}
@@ -315,13 +411,6 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
               name="logo"
               label="商户Logo"
               tooltip="建议上传正方形图片，尺寸至少200x200像素"
-              valuePropName="fileList"
-              getValueFromEvent={(e) => {
-                if (Array.isArray(e)) {
-                  return e;
-                }
-                return e?.fileList;
-              }}
             >
               <Upload
                 name="logo"
@@ -333,7 +422,15 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 }
               >
                 {logoUrl ? (
-                  <img src={logoUrl} alt="logo" style={{ width: '100%' }} />
+                  <img 
+                    src={logoUrl} 
+                    alt="logo" 
+                    style={{ width: '100%' }} 
+                    onError={(e) => {
+                      console.warn('Logo图片加载失败:', logoUrl);
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlOWVjZWYiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIj5Mb2dvPC90ZXh0Pjwvc3ZnPg==';
+                    }}
+                  />
                 ) : (
                   uploadButton
                 )}
@@ -344,13 +441,6 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
               name="cover"
               label="封面图"
               tooltip="建议上传宽高比为16:9的图片"
-              valuePropName="fileList"
-              getValueFromEvent={(e) => {
-                if (Array.isArray(e)) {
-                  return e;
-                }
-                return e?.fileList;
-              }}
             >
               <Upload
                 name="cover"
@@ -362,7 +452,15 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 }
               >
                 {coverUrl ? (
-                  <img src={coverUrl} alt="cover" style={{ width: '100%' }} />
+                  <img 
+                    src={coverUrl} 
+                    alt="cover" 
+                    style={{ width: '100%' }} 
+                    onError={(e) => {
+                      console.warn('Cover图片加载失败:', coverUrl);
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlOWVjZWYiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIj7lsIHpnaI8L3RleHQ+PC9zdmc+';
+                    }}
+                  />
                 ) : (
                   uploadButton
                 )}
@@ -384,11 +482,15 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
             
             <Form.Item
               name="commission_rate"
-              label="佣金率"
-              tooltip="商户佣金率，0-1之间的小数"
-              rules={[
-                { required: true, message: '请输入佣金率' }
-              ]}
+              label={
+                <span>
+                  佣金率 
+                  <Tooltip title="商户佣金率，0-1之间的小数，表示百分比">
+                    <InfoCircleOutlined style={{ marginLeft: 4 }} />
+                  </Tooltip>
+                </span>
+              }
+              rules={[{ required: true, message: '请输入佣金率' }]}
             >
               <InputNumber
                 style={{ width: '100%' }}
@@ -397,7 +499,7 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
                 precision={2}
                 step={0.01}
                 formatter={value => `${(value * 100).toFixed(0)}%`}
-                parser={value => value.replace('%', '') / 100}
+                parser={value => parseFloat(value.replace('%', '')) / 100}
               />
             </Form.Item>
             
@@ -415,6 +517,40 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
               />
             </Form.Item>
           </Card>
+          
+          {/* 调试信息面板 - 仅在开发环境显示 */}
+          {process.env.NODE_ENV === 'development' && (
+            <Card title="表单调试" style={{ marginTop: 16 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div>字段状态:</div>
+                <div>名称: {form.getFieldValue('name') || '未设置'}</div>
+                <div>联系人: {form.getFieldValue('contact_name') || '未设置'}</div>
+                <div>分类IDs: {JSON.stringify(form.getFieldValue('category_ids') || [])}</div>
+                <Button 
+                  size="small" 
+                  onClick={() => {
+                    console.log("表单当前所有值:", form.getFieldsValue());
+                    message.info('表单值已在控制台打印');
+                  }}
+                >
+                  查看所有字段值
+                </Button>
+                <Button 
+                  size="small" 
+                  onClick={() => {
+                    if (initialValues) {
+                      form.setFieldsValue(initialValues);
+                      message.success('已重置表单数据');
+                    } else {
+                      message.warning('无初始值可用');
+                    }
+                  }}
+                >
+                  重置为初始值
+                </Button>
+              </Space>
+            </Card>
+          )}
         </Col>
       </Row>
       
@@ -422,7 +558,12 @@ const MerchantForm = ({ initialValues, onFinish, loading }) => {
       
       <Form.Item>
         <Space>
-          <Button type="primary" htmlType="submit" loading={loading}>
+          <Button 
+            id="merchant-form-submit"
+            type="primary" 
+            htmlType="submit" 
+            loading={loading}
+          >
             保存
           </Button>
           <Button onClick={() => window.history.back()}>

@@ -28,7 +28,7 @@ import MerchantReview from './pages/Merchants/Review';
 import MerchantCategories from './pages/Merchants/Categories';
 
 // 错误页面
-// import NotFound from './pages/NotFound';
+import NotFound from './pages/NotFound';
 
 // 鉴权路由组件
 const PrivateRoute = ({ children }) => {

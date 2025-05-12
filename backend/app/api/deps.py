@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.merchant import Merchant
 from app.schemas.token import TokenPayload
 from app.core.redis import RedisClient
-from app.core.constants import CACHE_KEY_PREFIX
+from app.core.constants import CACHE_EXPIRE_TIME, CACHE_KEY_PREFIX
 
 # OAuth2 密码流认证
 oauth2_scheme = OAuth2PasswordBearer(
@@ -172,18 +172,17 @@ def get_current_merchant(
 def get_current_admin(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
-    """
-    获取当前管理员用户
+    """获取当前管理员用户"""
     
-    Args:
-        current_user: 当前用户
-        
-    Returns:
-        当前管理员用户
-        
-    Raises:
-        HTTPException: 非管理员用户
-    """
+    # 打印完整的用户信息用于调试
+    print("-" * 50)
+    print("当前用户数据:")
+    for key, value in vars(current_user).items():
+        if not key.startswith('_'):
+            print(f"  {key}: {value}")
+    print("-" * 50)
+    
+    # 原有的检查代码
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

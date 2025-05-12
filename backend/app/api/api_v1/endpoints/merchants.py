@@ -82,7 +82,23 @@ async def create_merchant(
     )
     return merchant
 
+#管理端更新
+@router.put("/{merchant_id}", response_model=schemas.merchant.Merchant, dependencies=[Depends(deps.get_current_admin)])
+async def update_merchant_by_admin(
+    merchant_data: schemas.merchant.MerchantUpdate,
+    merchant_id: int = Path(..., ge=1),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    更新商户信息（需要管理员权限）
+    """
+    return await merchant_service.update_merchant(
+        db=db,
+        merchant_id=merchant_id,
+        merchant_data=merchant_data
+    )
 
+#商户端更新
 @router.put("/my", response_model=schemas.merchant.Merchant)
 async def update_merchant(
     merchant_data: schemas.merchant.MerchantUpdate,
@@ -97,6 +113,7 @@ async def update_merchant(
         merchant_id=current_user.merchant_id,
         merchant_data=merchant_data
     )
+
 
 
 @router.get("/categories/all", response_model=List[schemas.merchant.Category])
