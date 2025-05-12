@@ -1,9 +1,9 @@
 // src/pages/Merchants/List/index.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Table, Card, Button, Input, Select, Space, message, Tag } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { fetchMerchantList } from '../../../api/merchant'; // 确保路径正确
+import request from '../../../utils/request';
 
 const { Option } = Select;
 
@@ -22,6 +22,11 @@ const MerchantList = () => {
     status: null
   });
 
+  // 防止API重复调用的标志
+  const apiCallInProgress = useRef(false);
+  const hasLoadedInitialData = useRef(false);
+  const loadDataRef = useRef();
+
   // 状态标签颜色映射
   const statusColors = {
     0: 'orange',    // 待审核
@@ -36,97 +41,86 @@ const MerchantList = () => {
     2: '已禁用'
   };
 
-  // 加载商户列表数据
-  const loadData = async (params = {}) => {
-    try {
-      setLoading(true);
-      const { current, pageSize, ...restParams } = params;
-      
-      // 构建查询参数
-      const queryParams = {
-        page: current || pagination.current,
-        page_size: pageSize || pagination.pageSize,
-        keyword: filters.keyword,
-        category_id: filters.category_id,
-        status: filters.status,
-        ...restParams
-      };
-      
-      // 如果API尚未实现，使用测试数据
-      let response;
-      try {
-        response = await fetchMerchantList(queryParams);
-      } catch (error) {
-        console.warn('API调用失败，使用测试数据', error);
-        // 测试数据
-        response = {
-          data: {
-            items: [
-              {
-                id: 1,
-                name: '示例商户1',
-                logo: 'https://via.placeholder.com/50',
-                contact_name: '张三',
-                contact_phone: '13800138000',
-                province: '广东省',
-                city: '深圳市',
-                district: '南山区',
-                address: '科技园路123号',
-                status: 1,
-                rating: 4.5,
-                commission_rate: 0.05,
-                created_at: '2023-05-12 10:30:00'
-              },
-              {
-                id: 2,
-                name: '示例商户2',
-                logo: 'https://via.placeholder.com/50',
-                contact_name: '李四',
-                contact_phone: '13900139000',
-                province: '广东省',
-                city: '广州市',
-                district: '天河区',
-                address: '天河路456号',
-                status: 0,
-                rating: 5.0,
-                commission_rate: 0.03,
-                created_at: '2023-05-10 14:20:00'
-              }
-            ],
-            total: 2,
-            page: 1,
-            page_size: 10
-          }
-        };
+  // 更新loadData函数引用
+  useEffect(() => {
+    loadDataRef.current = async (params = {}) => {
+      // 防止同时多次调用API
+      if (apiCallInProgress.current) {
+        console.log("API调用已在进行中，跳过重复请求");
+        return;
       }
       
-      const { items, total, page, page_size } = response.data;
-      
-      // 更新数据和分页
-      setMerchants(items);
-      setPagination({
-        current: page,
-        pageSize: page_size,
-        total
-      });
-    } catch (error) {
-      console.error('获取商户列表失败', error);
-      message.error('获取商户列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        apiCallInProgress.current = true;
+        setLoading(true);
+        
+        const { current, pageSize, ...restParams } = params;
+        
+        // 构建查询参数，使用最新的filters状态
+        const queryParams = {
+          page: current || pagination.current,
+          page_size: pageSize || pagination.pageSize,
+          keyword: params.keyword !== undefined ? params.keyword : filters.keyword,
+          category_id: params.category_id !== undefined ? params.category_id : filters.category_id,
+          status: params.status !== undefined ? params.status : filters.status,
+          ...restParams
+        };
+        
+        console.log("开始请求商户列表数据...", queryParams);
+        
+        // 调用API获取数据
+        const response = await request({
+          url: '/merchants/', // 添加尾部斜杠避免重定向
+          method: 'get',
+          params: queryParams,
+          // 减少超时时间
+          timeout: 8000
+        });
+        
+        console.log("获取商户列表成功:", response);
+        
+        // 解构API返回数据
+        const { items = [], total = 0, page = 1, page_size = 10 } = response.data || {};
+        
+        // 更新状态
+        setMerchants(items);
+        setPagination({
+          current: page,
+          pageSize: page_size,
+          total
+        });
+        
+      } catch (error) {
+        console.error("获取商户列表失败:", error);
+        message.error('获取商户列表失败');
+        
+        // 设置空数据
+        setMerchants([]);
+        setPagination({
+          ...pagination,
+          total: 0
+        });
+      } finally {
+        setLoading(false);
+        apiCallInProgress.current = false;
+      }
+    };
+  }, [filters, pagination]); // 依赖项更新引用
 
-  // 首次加载
+  // 首次加载数据
   useEffect(() => {
-    loadData();
+    if (!hasLoadedInitialData.current) {
+      console.log("首次加载商户列表...");
+      loadDataRef.current();
+      hasLoadedInitialData.current = true;
+    }
   }, []);
 
   // 处理表格变化
-  const handleTableChange = (pagination, filters, sorter) => {
-    loadData({
-      current: pagination.current,
-      pageSize: pagination.pageSize,
+  const handleTableChange = (paginationData, filtersData, sorter) => {
+    loadDataRef.current({
+      current: paginationData.current,
+      pageSize: paginationData.pageSize,
       sort_by: sorter.field,
       sort_order: sorter.order === 'descend' ? 'desc' : 'asc'
     });
@@ -134,12 +128,35 @@ const MerchantList = () => {
 
   // 处理搜索
   const handleSearch = () => {
-    loadData({
-      current: 1
+    // 搜索时重置到第一页
+    loadDataRef.current({ current: 1 });
+  };
+
+  // 处理过滤器变化
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  // 清空过滤器
+  const handleClearFilters = () => {
+    setFilters({
+      keyword: '',
+      category_id: null,
+      status: null
+    });
+    // 重置过滤器后重新加载数据
+    loadDataRef.current({
+      current: 1,
+      keyword: '',
+      category_id: null,
+      status: null
     });
   };
 
-  // 定义表格列
+  // 表格列定义
   const columns = [
     {
       title: 'ID',
@@ -158,6 +175,7 @@ const MerchantList = () => {
               src={record.logo} 
               alt={text} 
               style={{ width: '30px', height: '30px', borderRadius: '4px' }} 
+              onError={(e) => {e.target.src = 'https://via.placeholder.com/30'}}
             />
           )}
           {text}
@@ -180,7 +198,7 @@ const MerchantList = () => {
       key: 'address',
       ellipsis: true,
       render: (text, record) => (
-        <span>{`${record.province}${record.city}${record.district}${text || ''}`}</span>
+        <span>{`${record.province || ''}${record.city || ''}${record.district || ''}${text || ''}`}</span>
       )
     },
     {
@@ -189,8 +207,8 @@ const MerchantList = () => {
       key: 'status',
       width: 100,
       render: (status) => (
-        <Tag color={statusColors[status]}>
-          {statusText[status]}
+        <Tag color={statusColors[status] || 'default'}>
+          {statusText[status] || '未知'}
         </Tag>
       )
     },
@@ -248,22 +266,23 @@ const MerchantList = () => {
       }
     >
       {/* 搜索工具栏 */}
-      <div style={{ marginBottom: 16, display: 'flex' }}>
-        <Space size="large">
+      <div style={{ marginBottom: 16 }}>
+        <Space size="large" wrap>
           <Input
             placeholder="商户名称/联系人/电话"
             value={filters.keyword}
-            onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+            onChange={(e) => handleFilterChange('keyword', e.target.value)}
             style={{ width: 230 }}
             onPressEnter={handleSearch}
             prefix={<SearchOutlined />}
+            allowClear
           />
           
           <Select
             placeholder="商户状态"
             style={{ width: 120 }}
             value={filters.status}
-            onChange={(value) => setFilters({ ...filters, status: value })}
+            onChange={(value) => handleFilterChange('status', value)}
             allowClear
           >
             <Option value={0}>待审核</Option>
@@ -272,6 +291,7 @@ const MerchantList = () => {
           </Select>
           
           <Button type="primary" onClick={handleSearch}>搜索</Button>
+          <Button onClick={handleClearFilters}>重置</Button>
         </Space>
       </div>
       
@@ -283,6 +303,8 @@ const MerchantList = () => {
         pagination={pagination}
         loading={loading}
         onChange={handleTableChange}
+        scroll={{ x: 'max-content' }}
+        locale={{ emptyText: '暂无商户数据' }}
       />
     </Card>
   );

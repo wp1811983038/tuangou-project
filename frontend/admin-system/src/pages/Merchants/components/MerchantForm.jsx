@@ -4,8 +4,11 @@ import {
   Form, Input, Select, InputNumber, Upload, Button, Space, Row, Col, 
   Card, Divider, message 
 } from 'antd';
-import { UploadOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons';
-import { fetchMerchantCategories } from '@/api/merchant';
+import { 
+   LoadingOutlined, PlusOutlined 
+} from '@ant-design/icons';
+
+import { fetchMerchantCategories } from '../../../api/merchant';
 
 const { Option } = Select;
 const { TextArea } = Input;

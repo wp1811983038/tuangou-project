@@ -1,16 +1,20 @@
 // src/pages/Merchants/Categories/index.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Button, Space, Modal, Form, Input, Switch, Upload, 
-  message, Popconfirm, Tag 
+// import { LoadingOutlined, InputNumber } from 'antd';
+// 修改导入语句
+import {
+  Card, Table, Button, Space, Modal, Form, Input, Switch, Upload,
+  message, Popconfirm, Tag, InputNumber
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, LoadingOutlined
+} from '@ant-design/icons';
 import { 
   fetchMerchantCategories, 
   createMerchantCategory, 
   updateMerchantCategory, 
   deleteMerchantCategory 
-} from '@/api/merchant';
+} from '../../../api/merchant';
 
 const MerchantCategories = () => {
   const [form] = Form.useForm();

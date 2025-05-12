@@ -1,12 +1,12 @@
 // src/pages/Merchants/Review/index.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Card, Descriptions, Badge, Button, Form, Radio, Input, Space, Divider, 
-  Image, Row, Col, message 
+  Image, Row, Col, message, Tag
 } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { fetchMerchantDetail, updateMerchantStatus } from '@/api/merchant';
+import request from '../../../utils/request';
 
 const { TextArea } = Input;
 
@@ -17,25 +17,41 @@ const MerchantReview = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [merchant, setMerchant] = useState(null);
+  const isLoadingRef = useRef(false);
+  const loadMerchantDetailRef = useRef();
 
-  // 加载商户详情
-  const loadMerchantDetail = async () => {
-    try {
-      setLoading(true);
-      const response = await fetchMerchantDetail(id);
-      setMerchant(response);
-    } catch (error) {
-      message.error('获取商户详情失败');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 更新函数引用
+  useEffect(() => {
+    loadMerchantDetailRef.current = async () => {
+      if (isLoadingRef.current) return;
+      
+      try {
+        isLoadingRef.current = true;
+        setLoading(true);
+        
+        // 调用API获取商户详情
+        const response = await request({
+          url: `/merchants/${id}/`,
+          method: 'get',
+          timeout: 8000
+        });
+        
+        setMerchant(response.data);
+      } catch (error) {
+        console.error('获取商户详情失败', error);
+        message.error('获取商户详情失败');
+        setMerchant(null);
+      } finally {
+        setLoading(false);
+        isLoadingRef.current = false;
+      }
+    };
+  }, [id]);
 
   // 首次加载
   useEffect(() => {
     if (id) {
-      loadMerchantDetail();
+      loadMerchantDetailRef.current();
     }
   }, [id]);
 
@@ -46,9 +62,13 @@ const MerchantReview = () => {
       const { reviewResult, reviewReason } = values;
       
       // 调用API更新商户状态
-      await updateMerchantStatus(id, {
-        status: reviewResult === 'approve' ? 1 : 2,
-        review_reason: reviewReason || null
+      await request({
+        url: `/merchants/${id}/status/`,
+        method: 'put',
+        data: {
+          status: reviewResult === 'approve' ? 1 : 2,
+          review_reason: reviewReason || null
+        }
       });
       
       message.success('审核完成');
@@ -104,7 +124,7 @@ const MerchantReview = () => {
               {merchant.contact_phone}
             </Descriptions.Item>
             <Descriptions.Item label="所在地址" span={2}>
-              {`${merchant.province}${merchant.city}${merchant.district}${merchant.address}`}
+              {`${merchant.province || ''}${merchant.city || ''}${merchant.district || ''}${merchant.address || ''}`}
             </Descriptions.Item>
             <Descriptions.Item label="营业执照号">
               {merchant.license_number || '未提供'}

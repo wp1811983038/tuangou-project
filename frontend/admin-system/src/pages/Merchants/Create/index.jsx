@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import MerchantForm from '../components/MerchantForm';
-import { createMerchant } from '@/api/merchant';
+import { createMerchant } from '../../../api/merchant';
 
 const CreateMerchant = () => {
   const navigate = useNavigate();

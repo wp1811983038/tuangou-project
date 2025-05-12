@@ -6,6 +6,7 @@ import {
   ShoppingOutlined,
   OrderedListOutlined
 } from '@ant-design/icons';
+import './index.less'; 
 
 // 使用内联样式确保显示正常
 const cardStyle = {

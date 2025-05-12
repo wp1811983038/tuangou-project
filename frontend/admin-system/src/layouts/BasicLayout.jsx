@@ -364,13 +364,17 @@ const BasicLayout = () => {
     color: 'rgba(0, 0, 0, 0.45)'
   };
   
-  const contentCardStyle = {
-    padding: '24px',
-    background: '#fff',
-    minHeight: '280px',
-    borderRadius: '2px',
-    margin: '0 24px'
-  };
+// 替换原有的contentCardStyle
+const contentCardStyle = {
+  padding: '24px',
+  background: '#fff',
+  minHeight: '280px',
+  borderRadius: '2px',
+  margin: '0 24px',
+  border: '2px solid red', // 添加明显边框以便于调试
+  position: 'relative',    // 确保定位正确
+  zIndex: 1               // 确保层级正确
+};
   
   const footerStyle = {
     textAlign: 'center',
