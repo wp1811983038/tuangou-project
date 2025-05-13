@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.api import deps
 from app.services import merchant_service
+from app.models.admin import Admin
+from app.models.category import Category
 
 router = APIRouter()
 
@@ -122,7 +124,56 @@ async def update_merchant(
         merchant_data=merchant_data,
         user_id=current_user.id
     )
+
+
+# 添加导入
+# 添加必要的导入
+from app.models.merchant import Merchant, MerchantCategory, Category
+from app.crud import crud_merchant
+
+# 添加管理员专用路由
+@router.put("/admin/{merchant_id}", response_model=schemas.merchant.MerchantDetail)
+async def admin_update_merchant(
+    merchant_data: schemas.merchant.MerchantUpdate,
+    merchant_id: int = Path(..., ge=1),
+    admin: Admin = Depends(deps.get_current_admin),  # 使用管理员依赖
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """管理员更新商户信息（需要管理员权限）"""
+    # 获取商户
+    merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="商户不存在")
     
+    # 更新基本信息
+    for key, value in merchant_data.dict(exclude_unset=True, exclude={"category_ids"}).items():
+        setattr(merchant, key, value)
+    
+    # 更新分类关联
+    if merchant_data.category_ids is not None:
+        # 删除旧关联
+        db.query(MerchantCategory).filter(
+            MerchantCategory.merchant_id == merchant_id
+        ).delete()
+        
+        # 添加新关联
+        for category_id in merchant_data.category_ids:
+            category = db.query(Category).filter(Category.id == category_id).first()
+            if category:
+                merchant_category = MerchantCategory(
+                    merchant_id=merchant_id,
+                    category_id=category_id
+                )
+                db.add(merchant_category)
+    
+    db.commit()
+    db.refresh(merchant)
+    
+    # 使用修复后的get_merchant_detail函数获取完整格式的商户信息
+    return await merchant_service.get_merchant_detail(
+        db=db,
+        merchant_id=merchant_id
+    )
 
 @router.put("/{merchant_id}", response_model=schemas.merchant.Merchant, dependencies=[Depends(deps.get_current_admin)])
 async def update_merchant_by_admin(
@@ -133,12 +184,16 @@ async def update_merchant_by_admin(
     """
     更新商户信息（需要管理员权限）
     """
-    return await merchant_service.update_merchant(
-        db=db,
-        merchant_id=merchant_id,
-        merchant_data=merchant_data,
-        is_admin=True  # 关键修改：标记为管理员调用
-    )
+    # 直接获取商户并更新，跳过权限检查
+    merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="商户不存在")
+        
+    # 更新基本信息
+    updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=merchant_data)
+    
+    # 完成后获取完整详情以返回正确格式
+    return await merchant_service.get_merchant_detail(db=db, merchant_id=merchant_id)
 
 @router.get("/categories/all", response_model=List[schemas.merchant.Category])
 async def get_all_categories(

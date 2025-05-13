@@ -35,14 +35,20 @@ async def get_merchant_detail(db: Session, merchant_id: int) -> Dict:
         Product.merchant_id == merchant_id
     ).scalar() or 0
     
-    # 获取分类信息
+    # 获取分类信息 - 确保包含时间戳字段
     categories = []
     for mc in merchant.categories:
         if mc.category:
             categories.append({
                 "id": mc.category.id,
                 "name": mc.category.name,
-                "icon": mc.category.icon
+                "icon": mc.category.icon,
+                # 添加必要的时间戳字段
+                "created_at": mc.category.created_at,
+                "updated_at": mc.category.updated_at,
+                # 如果还有其他必要字段，也可以在这里添加
+                "sort_order": mc.category.sort_order,
+                "is_active": mc.category.is_active
             })
     
     return {
@@ -317,10 +323,10 @@ async def delete_category(db: Session, category_id: int) -> bool:
     if merchant_count > 0:
         raise HTTPException(status_code=400, detail="分类已被商户使用，无法删除")
     
-    # 检查是否有商品使用此分类
+    # 检查是否有商品使用此分类 - 修正引用错误
     product_count = db.query(func.count(product_categories.c.category_id)).filter(
-    product_categories.c.category_id == category_id
-).scalar() or 0
+        product_categories.c.category_id == category_id
+    ).scalar() or 0
     
     if product_count > 0:
         raise HTTPException(status_code=400, detail="分类已被商品使用，无法删除")
