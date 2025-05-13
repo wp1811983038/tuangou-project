@@ -1,13 +1,12 @@
 // src/pages/Merchants/Edit/index.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, message, Spin, Button, Space, Alert, Divider } from 'antd';
+import { Card, message, Spin, Button, Space, Alert } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, ReloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import request from '../../../utils/request';
 import MerchantForm from '../components/MerchantForm';
 
-// 将两个组件声明合并为一个
 const EditMerchant = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,10 +26,16 @@ const EditMerchant = () => {
     console.log("当前用户信息:", userInfo);
     console.log("用户角色:", roles);
     console.log("是否管理员:", roles?.includes('admin'));
+    
+    // 检查用户是否有管理员权限
+    const isAdmin = roles?.includes('admin');
+    if (!isAdmin) {
+      message.warning('您不是管理员，可能无法保存商户信息');
+    }
   }, [userInfo, roles]);
 
   // 加载商户详情数据
-  const loadMerchantDetail = async () => {
+  const loadMerchantDetail = useCallback(async () => {
     if (isLoadingRef.current) return;
     
     try {
@@ -78,14 +83,14 @@ const EditMerchant = () => {
       setLoading(false);
       isLoadingRef.current = false;
     }
-  };
+  }, [id]);
 
   // 首次加载
   useEffect(() => {
     if (id) {
       loadMerchantDetail();
     }
-  }, [id]);
+  }, [id, loadMerchantDetail]);
 
   // 更新商户
   const handleSubmit = async (values) => {
@@ -93,31 +98,52 @@ const EditMerchant = () => {
       setSubmitting(true);
       setErrorMsg('');
       
-      // 打印提交数据和管理员状态
-      console.log("提交商户更新数据:", values);
-      console.log("是否管理员:", roles?.includes('admin'));
-      
-      // 确保重要字段存在
+      // 创建一个数据副本
       const safeValues = { ...values };
       
-      // 处理图片路径 - 如果是默认路径就不提交
+      console.log("原始提交数据:", safeValues);
+      
+      // 处理图片字段
       ['logo', 'cover', 'license_image'].forEach(field => {
-        if (safeValues[field]?.includes('/assets/images/')) {
+        const value = safeValues[field];
+        
+        // 处理各种可能的值形式
+        if (value) {
+          if (typeof value === 'object') {
+            // 处理对象类型的值
+            if (value.file && value.file.response && value.file.response.url) {
+              safeValues[field] = value.file.response.url;
+            } else if (value.response && value.response.url) {
+              safeValues[field] = value.response.url;
+            } else if (value.url) {
+              safeValues[field] = value.url;
+            } else {
+              delete safeValues[field];
+            }
+          } else if (typeof value === 'string') {
+            // 处理字符串类型的值，保留后端URL
+            if (value.startsWith('data:') || value.includes('/assets/images/')) {
+              delete safeValues[field];
+            }
+          }
+        } else {
+          // 值为空则删除字段
           delete safeValues[field];
         }
       });
       
-      // 调用API更新商户 - 管理员专用API
+      console.log("处理后的提交数据:", safeValues);
+      console.log("是否管理员:", roles?.includes('admin'));
+      
+      // 使用管理员专用路由
       await request({
-        url: `/merchants/${id}`,
+        url: `/merchants/admin/${id}`,  // 管理员专用路由
         method: 'put',
         data: safeValues,
-        timeout: 15000 // 增加超时时间
+        timeout: 15000
       });
       
       message.success('商户更新成功');
-      
-      // 更新成功后导航到详情页
       navigate(`/merchants/detail/${id}`);
     } catch (error) {
       console.error('商户更新失败:', error);
@@ -133,7 +159,7 @@ const EditMerchant = () => {
       }
       
       setErrorMsg(`商户更新失败: ${errorDetail}`);
-      message.error('商户更新失败，请检查表单数据或网络连接');
+      message.error('商户更新失败，请检查表单数据或权限');
     } finally {
       setSubmitting(false);
     }

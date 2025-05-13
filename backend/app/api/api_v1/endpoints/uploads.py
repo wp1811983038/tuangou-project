@@ -14,6 +14,7 @@ router = APIRouter()
 async def upload_file(
     file: UploadFile = File(...),
     folder: str = Form("uploads"),
+    merchant_id: Optional[int] = Form(None),  # 新增商户ID参数
     current_user: schemas.user.User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -22,10 +23,15 @@ async def upload_file(
     # 获取上传配置
     config = await upload_service.get_upload_config()
     
+    # 如果用户是商户，自动使用其商户ID
+    if merchant_id is None and current_user.merchant_id:
+        merchant_id = current_user.merchant_id
+    
     # 上传文件
     result = await upload_service.upload_file(
         file=file,
         folder=folder,
+        merchant_id=merchant_id,  # 传递商户ID
         allowed_extensions=config["allowed_extensions"],
         max_size=config["max_size"]
     )
@@ -63,6 +69,7 @@ async def upload_files(
 async def upload_images(
     files: List[UploadFile] = File(...),
     folder: str = Form("images"),
+    merchant_id: Optional[int] = Form(None),  # 新增商户ID参数
     current_user: schemas.user.User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -74,10 +81,15 @@ async def upload_images(
     # 验证文件类型
     image_extensions = ["jpg", "jpeg", "png", "gif", "webp"]
     
+    # 如果用户是商户，自动使用其商户ID
+    if merchant_id is None and current_user.merchant_id:
+        merchant_id = current_user.merchant_id
+    
     # 上传文件
     results = await upload_service.upload_files(
         files=files,
         folder=folder,
+        merchant_id=merchant_id,  # 传递商户ID 
         allowed_extensions=image_extensions,
         max_size=config["max_size"]
     )

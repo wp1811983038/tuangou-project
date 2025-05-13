@@ -115,7 +115,7 @@ async def update_merchant(
     merchant_id: int, 
     merchant_data: MerchantUpdate, 
     user_id: int = None,
-    is_admin: bool = False  # 添加管理员标志参数
+    is_admin: bool = False
 ) -> Merchant:
     """更新商户信息"""
     merchant = crud_merchant.get(db, id=merchant_id)
@@ -139,15 +139,16 @@ async def update_merchant(
             MerchantCategory.merchant_id == merchant_id
         ).delete()
         
-        # 添加新的关联
+        # 添加新的关联，并验证分类ID是否存在
         for category_id in merchant_data.category_ids:
             category = crud_category.get(db, id=category_id)
-            if category:
-                merchant_category = MerchantCategory(
-                    merchant_id=merchant_id,
-                    category_id=category_id
-                )
-                db.add(merchant_category)
+            if not category:
+                raise HTTPException(status_code=404, detail=f"分类ID {category_id} 不存在")
+            merchant_category = MerchantCategory(
+                merchant_id=merchant_id,
+                category_id=category_id
+            )
+            db.add(merchant_category)
         db.commit()
     
     return updated_merchant
@@ -323,7 +324,7 @@ async def delete_category(db: Session, category_id: int) -> bool:
     if merchant_count > 0:
         raise HTTPException(status_code=400, detail="分类已被商户使用，无法删除")
     
-    # 检查是否有商品使用此分类 - 修正引用错误
+    # 检查是否有商品使用此分类
     product_count = db.query(func.count(product_categories.c.category_id)).filter(
         product_categories.c.category_id == category_id
     ).scalar() or 0
@@ -331,4 +332,5 @@ async def delete_category(db: Session, category_id: int) -> bool:
     if product_count > 0:
         raise HTTPException(status_code=400, detail="分类已被商品使用，无法删除")
     
-    return crud_category.remove(db, id=category_id)
+    # 使用 delete 方法而不是 remove 方法
+    return crud_category.delete(db, id=category_id)

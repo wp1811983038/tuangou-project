@@ -14,11 +14,12 @@ from app.core.constants import StorageType
 async def upload_file(
     file: UploadFile,
     folder: str = "uploads",
+    merchant_id: Optional[int] = None,  # 新增商户ID参数
     allowed_extensions: Optional[List[str]] = None,
     max_size: Optional[int] = None,
     storage_type: Optional[StorageType] = None
 ) -> dict:
-    """上传单个文件"""
+    """上传单个文件，支持按商户分隔存储"""
     if not file:
         raise HTTPException(status_code=400, detail="没有文件")
     
@@ -58,16 +59,25 @@ async def upload_file(
     # 生成文件名
     timestamp = int(datetime.now().timestamp())
     random_str = uuid.uuid4().hex[:8]
-    filename = file.filename
+    original_filename = file.filename
     
     # 安全处理文件名
-    safe_filename = f"{timestamp}_{random_str}_{filename}"
+    safe_filename = f"{timestamp}_{random_str}_{original_filename}"
     
-    # 存储路径
-    if folder:
-        filepath = os.path.join(folder, safe_filename)
+    # 存储路径 - 使用商户ID创建子目录
+    if merchant_id:
+        # 商户专属文件夹
+        merchant_folder = f"merchant_{merchant_id}"
+        if folder:
+            filepath = os.path.join(folder, merchant_folder, safe_filename)
+        else:
+            filepath = os.path.join(merchant_folder, safe_filename)
     else:
-        filepath = safe_filename
+        # 无商户ID时使用公共文件夹
+        if folder:
+            filepath = os.path.join(folder, safe_filename)
+        else:
+            filepath = safe_filename
     
     # 根据存储类型处理
     if storage_type == StorageType.LOCAL:
@@ -86,11 +96,12 @@ async def upload_file(
 async def upload_files(
     files: List[UploadFile],
     folder: str = "uploads",
+    merchant_id: Optional[int] = None,  # 新增商户ID参数
     allowed_extensions: Optional[List[str]] = None,
     max_size: Optional[int] = None,
     storage_type: Optional[StorageType] = None
 ) -> List[dict]:
-    """批量上传文件"""
+    """批量上传文件，支持按商户分隔存储"""
     if not files:
         raise HTTPException(status_code=400, detail="没有文件")
     
@@ -99,6 +110,7 @@ async def upload_files(
         result = await upload_file(
             file=file,
             folder=folder,
+            merchant_id=merchant_id,  # 传递商户ID
             allowed_extensions=allowed_extensions,
             max_size=max_size,
             storage_type=storage_type
@@ -109,9 +121,10 @@ async def upload_files(
 
 
 async def store_file_local(file: UploadFile, filepath: str) -> dict:
-    """本地存储文件"""
-    # 确保目录存在
-    os.makedirs(os.path.dirname(os.path.join(settings.STORAGE_LOCAL_DIR, filepath)), exist_ok=True)
+    """本地存储文件，支持商户子目录结构"""
+    # 确保目录存在（包括商户子目录）
+    full_dir_path = os.path.dirname(os.path.join(settings.STORAGE_LOCAL_DIR, filepath))
+    os.makedirs(full_dir_path, exist_ok=True)
     
     # 保存文件
     file_path = os.path.join(settings.STORAGE_LOCAL_DIR, filepath)
@@ -152,3 +165,76 @@ async def get_upload_config() -> dict:
         "storage_type": settings.STORAGE_TYPE,
         "domain": None
     }
+
+
+async def get_image_upload_config() -> dict:
+    """获取图片上传专用配置"""
+    config = await get_upload_config()
+    config["upload_dir"] = "images"
+    config["allowed_extensions"] = ["jpg", "jpeg", "png", "gif", "webp"]
+    return config
+
+
+async def delete_file(file_path: str) -> bool:
+    """删除文件
+    
+    Args:
+        file_path: 文件路径，如"/static/uploads/images/merchant_1/1234567890_abcdef_logo.jpg"
+        
+    Returns:
+        bool: 是否删除成功
+    """
+    # 从静态URL路径转换为实际文件路径
+    if file_path.startswith("/static/"):
+        file_path = file_path[8:]  # 移除"/static/"前缀
+    
+    full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_path)
+    
+    # 检查文件是否存在
+    if not os.path.exists(full_path):
+        return False
+    
+    try:
+        # 删除文件
+        os.remove(full_path)
+        return True
+    except Exception as e:
+        print(f"删除文件失败: {str(e)}")
+        return False
+
+
+async def get_file_info(file_path: str) -> Optional[dict]:
+    """获取文件信息
+    
+    Args:
+        file_path: 文件路径，如"/static/uploads/images/merchant_1/1234567890_abcdef_logo.jpg"
+        
+    Returns:
+        dict: 文件信息，包含大小、类型等
+    """
+    # 从静态URL路径转换为实际文件路径
+    if file_path.startswith("/static/"):
+        file_path = file_path[8:]  # 移除"/static/"前缀
+    
+    full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_path)
+    
+    # 检查文件是否存在
+    if not os.path.exists(full_path):
+        return None
+    
+    try:
+        # 获取文件信息
+        filename = os.path.basename(file_path)
+        size = os.path.getsize(full_path)
+        mime_type, _ = mimetypes.guess_type(filename)
+        
+        return {
+            "url": f"/static/{file_path}",
+            "filename": filename,
+            "size": size,
+            "mime_type": mime_type or "application/octet-stream",
+            "last_modified": datetime.fromtimestamp(os.path.getmtime(full_path))
+        }
+    except Exception as e:
+        print(f"获取文件信息失败: {str(e)}")
+        return None
