@@ -1,3 +1,4 @@
+import math
 from typing import Dict, List, Optional, Tuple, Union
 
 from fastapi import HTTPException
@@ -487,3 +488,118 @@ async def suggest_address(
             status_code=500,
             detail=f"获取地址提示失败: {str(e)}"
         )
+    
+
+
+import math
+import logging
+
+def calculate_boundary_coordinates(latitude: float, longitude: float, radius: float) -> dict:
+    """
+    计算指定经纬度和半径的边界坐标
+    
+    Args:
+        latitude: 纬度
+        longitude: 经度
+        radius: 半径(公里)
+        
+    Returns:
+        包含边界坐标的字典
+    """
+    logging.error("===== 开始计算边界坐标 =====")
+    
+    if not latitude or not longitude or not radius:
+        logging.error("❌ 无法计算边界坐标：缺少经纬度或半径值")
+        return None
+    
+    try:
+        # 地球半径(千米)
+        EARTH_RADIUS = 6371
+        
+        # 转换纬度为弧度
+        lat_rad = latitude * math.pi / 180
+        
+        # 计算1度经度对应的公里数（与纬度有关）
+        km_per_lng_degree = 111.32 * math.cos(lat_rad)
+        # 计算1度纬度对应的公里数（基本固定）
+        km_per_lat_degree = 111.32
+        
+        # 计算边界
+        north = latitude + (radius / km_per_lat_degree)
+        south = latitude - (radius / km_per_lat_degree)
+        east = longitude + (radius / km_per_lng_degree)
+        west = longitude - (radius / km_per_lng_degree)
+        
+        boundary_points = {
+            "center": {"latitude": latitude, "longitude": longitude},
+            "radius": radius,
+            "north": round(north, 6),
+            "south": round(south, 6),
+            "east": round(east, 6),
+            "west": round(west, 6),
+            "coverage_area_km2": round(math.pi * (radius ** 2), 2)
+        }
+        
+        logging.error("\n★★★★★ 商户服务区域边界坐标计算结果 ★★★★★")
+        logging.error(f"中心点坐标: ({latitude}, {longitude})")
+        logging.error(f"服务半径: {radius} 公里")
+        logging.error(f"北边界纬度: {north:.6f}°")
+        logging.error(f"南边界纬度: {south:.6f}°")
+        logging.error(f"东边界经度: {east:.6f}°")
+        logging.error(f"西边界经度: {west:.6f}°")
+        logging.error(f"覆盖面积: 约 {boundary_points['coverage_area_km2']} 平方公里")
+        logging.error("★★★★★ 计算完成 ★★★★★\n")
+        
+        return boundary_points
+    except Exception as e:
+        logging.error(f"❌❌❌ 计算边界坐标时出错: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return None
+    
+
+def calculate_boundary_points(latitude: float, longitude: float, radius: float) -> dict:
+    """
+    计算服务半径边界坐标（纯计算函数，不依赖于日志）
+    """
+    if not latitude or not longitude or not radius:
+        return {
+            "error": "缺少经纬度或半径值",
+            "valid": False
+        }
+    
+    try:
+        # 转换纬度为弧度
+        lat_rad = latitude * math.pi / 180
+        
+        # 计算1度经度对应的公里数（与纬度有关）
+        km_per_lng_degree = 111.32 * math.cos(lat_rad)
+        # 计算1度纬度对应的公里数（基本固定）
+        km_per_lat_degree = 111.32
+        
+        # 计算边界
+        north = latitude + (radius / km_per_lat_degree)
+        south = latitude - (radius / km_per_lat_degree)
+        east = longitude + (radius / km_per_lng_degree)
+        west = longitude - (radius / km_per_lng_degree)
+        
+        return {
+            "valid": True,
+            "center": {
+                "latitude": round(latitude, 6),
+                "longitude": round(longitude, 6)
+            },
+            "radius_km": radius,
+            "boundaries": {
+                "north": round(north, 6),
+                "south": round(south, 6),
+                "east": round(east, 6),
+                "west": round(west, 6)
+            },
+            "coverage_area_km2": round(math.pi * (radius ** 2), 2)
+        }
+    except Exception as e:
+        return {
+            "error": f"计算错误: {str(e)}",
+            "valid": False
+        }

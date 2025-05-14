@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
@@ -136,17 +136,25 @@ from app.crud import crud_merchant
 async def admin_update_merchant(
     merchant_data: schemas.merchant.MerchantUpdate,
     merchant_id: int = Path(..., ge=1),
-    admin: Admin = Depends(deps.get_current_admin),  # 使用管理员依赖
+    admin: Admin = Depends(deps.get_current_admin),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """管理员更新商户信息（需要管理员权限）"""
+    import math
+    
     print(f"管理员更新商户API调用，商户ID: {merchant_id}")
     print(f"请求体原始数据: {merchant_data}")
     print(f"服务半径值: {merchant_data.service_radius}")
+    
     # 获取商户
     merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
     if not merchant:
         raise HTTPException(status_code=404, detail="商户不存在")
+    
+    # 获取原始值用于比较
+    old_radius = merchant.service_radius
+    old_latitude = merchant.latitude
+    old_longitude = merchant.longitude
     
     # 更新基本信息
     for key, value in merchant_data.dict(exclude_unset=True, exclude={"category_ids"}).items():
@@ -169,10 +177,70 @@ async def admin_update_merchant(
                 )
                 db.add(merchant_category)
     
+    # 计算边界坐标并保存到数据库
+    if (merchant_data.service_radius is not None or 
+        merchant_data.latitude is not None or 
+        merchant_data.longitude is not None):
+        
+        latitude = merchant.latitude
+        longitude = merchant.longitude
+        radius = merchant.service_radius
+        
+        if latitude and longitude and radius:
+            try:
+                # 转换纬度为弧度
+                lat_rad = latitude * math.pi / 180
+                
+                # 计算1度经纬度对应的公里数
+                km_per_lng_degree = 111.32 * math.cos(lat_rad)
+                km_per_lat_degree = 111.32
+                
+                # 计算边界
+                north = latitude + (radius / km_per_lat_degree)
+                south = latitude - (radius / km_per_lat_degree)
+                east = longitude + (radius / km_per_lng_degree)
+                west = longitude - (radius / km_per_lng_degree)
+                coverage = math.pi * (radius ** 2)  # 仅用于日志显示
+                
+                # 保存边界坐标到数据库
+                merchant.north_boundary = north
+                merchant.south_boundary = south
+                merchant.east_boundary = east
+                merchant.west_boundary = west
+                
+                print("\n")
+                print("*" * 50)
+                print("服务区域边界坐标计算结果:")
+                print(f"商户ID: {merchant_id}")
+                print(f"中心点: 纬度={latitude}, 经度={longitude}")
+                print(f"服务半径: {radius} 公里")
+                print(f"北边界纬度: {north:.6f}°")
+                print(f"南边界纬度: {south:.6f}°") 
+                print(f"东边界经度: {east:.6f}°")
+                print(f"西边界经度: {west:.6f}°")
+                print(f"覆盖面积: 约 {coverage:.2f} 平方公里 (仅显示，未存储)")
+                print("已保存边界坐标到数据库")
+                
+                # 打印变化信息
+                if merchant_data.service_radius is not None and old_radius != merchant_data.service_radius:
+                    print(f"服务半径变化: {old_radius} -> {merchant_data.service_radius}")
+                if merchant_data.latitude is not None and old_latitude != merchant_data.latitude:
+                    print(f"纬度变化: {old_latitude} -> {merchant_data.latitude}")
+                if merchant_data.longitude is not None and old_longitude != merchant_data.longitude:
+                    print(f"经度变化: {old_longitude} -> {merchant_data.longitude}")
+                
+                print("*" * 50)
+                print("\n")
+                
+            except Exception as e:
+                print(f"计算边界坐标时出错: {str(e)}")
+    
+    # 提交更改到数据库
+    db.add(merchant)
     db.commit()
     db.refresh(merchant)
     
-    # 使用修复后的get_merchant_detail函数获取完整格式的商户信息
+    # 使用get_merchant_detail函数获取完整格式的商户信息
     return await merchant_service.get_merchant_detail(
         db=db,
         merchant_id=merchant_id
