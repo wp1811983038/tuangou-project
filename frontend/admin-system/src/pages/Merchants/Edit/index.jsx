@@ -108,94 +108,111 @@ const EditMerchant = () => {
   }, [navigate]);
 
   // 更新商户
-  const handleSubmit = async (values) => {
-    if (submitting) {
-      console.log("已经在提交中，忽略重复点击");
-      return;
-    }
+  // handleSubmit 方法完整代码 - 用于 MerchantEdit 组件
+const handleSubmit = async (values) => {
+  if (submitting) {
+    console.log("已经在提交中，忽略重复点击");
+    return;
+  }
 
-    try {
-      console.log("开始提交表单数据...", values);
-      setSubmitting(true);
-      setErrorMsg('');
+  try {
+    console.log("开始提交表单数据...", values);
+    setSubmitting(true);
+    setErrorMsg('');
 
-      // 创建一个数据副本
-      const safeValues = { ...values };
+    // 创建一个数据副本
+    const safeValues = { ...values };
 
-      console.log("原始提交数据:", safeValues);
+    console.log("原始提交数据:", safeValues);
 
-      // 处理图片字段
-      ['logo', 'cover', 'license_image'].forEach(field => {
-        const value = safeValues[field];
+    // 处理图片字段
+    ['logo', 'cover', 'license_image'].forEach(field => {
+      const value = safeValues[field];
 
-        // 处理各种可能的值形式
-        if (value) {
-          if (typeof value === 'object') {
-            // 处理对象类型的值
-            if (value.file && value.file.response && value.file.response.url) {
-              safeValues[field] = value.file.response.url;
-            } else if (value.response && value.response.url) {
-              safeValues[field] = value.response.url;
-            } else if (value.url) {
-              safeValues[field] = value.url;
-            } else {
-              delete safeValues[field];
-            }
-          } else if (typeof value === 'string') {
-            // 处理字符串类型的值，保留后端URL
-            if (value.startsWith('data:') || value.includes('/assets/images/')) {
-              delete safeValues[field];
-            }
+      // 处理各种可能的值形式
+      if (value) {
+        if (typeof value === 'object') {
+          // 处理对象类型的值
+          if (value.file && value.file.response && value.file.response.url) {
+            safeValues[field] = value.file.response.url;
+          } else if (value.response && value.response.url) {
+            safeValues[field] = value.response.url;
+          } else if (value.url) {
+            safeValues[field] = value.url;
+          } else {
+            delete safeValues[field];
           }
-        } else {
-          // 值为空则删除字段
-          delete safeValues[field];
+        } else if (typeof value === 'string') {
+          // 处理字符串类型的值，保留后端URL
+          if (value.startsWith('data:') || value.includes('/assets/images/')) {
+            delete safeValues[field];
+          }
         }
-      });
-
-      console.log("处理后的提交数据:", safeValues);
-      console.log("是否管理员:", roles?.includes('admin'));
-
-      // 使用管理员专用路由
-      const updateResponse = await request({
-        url: `/merchants/admin/${id}`,  // 管理员专用路由
-        method: 'put',
-        data: safeValues,
-        timeout: 15000
-      });
-
-      console.log("更新成功，响应:", updateResponse);
-      message.success('商户更新成功');
-
-      // 确保先重置提交状态再导航
-      setSubmitting(false);
-
-      // 使用setTimeout确保状态更新后再导航
-      setTimeout(() => {
-        navigateToList();
-      }, 100);
-
-    } catch (error) {
-      console.error('商户更新失败:', error);
-
-      // 安全地获取错误消息
-      let errorDetail = "未知错误";
-
-      if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        errorDetail = typeof detail === 'string' ? detail : JSON.stringify(detail);
-      } else if (error.message) {
-        errorDetail = error.message;
+      } else {
+        // 值为空则删除字段
+        delete safeValues[field];
       }
+    });
 
-      setErrorMsg(`商户更新失败: ${errorDetail}`);
-      message.error('商户更新失败，请检查表单数据或权限');
-    } finally {
-      // 确保在任何情况下都重置提交状态
-      setSubmitting(false);
-      console.log("表单提交流程结束，submitting状态已重置为:", false);
+    // 特别处理服务半径字段 - 确保是数值类型
+    if (safeValues.service_radius !== undefined) {
+      // 转换为浮点数
+      safeValues.service_radius = parseFloat(safeValues.service_radius);
+      
+      // 如果转换失败或为NaN，使用默认值
+      if (isNaN(safeValues.service_radius)) {
+        safeValues.service_radius = 5.0;
+      }
+      
+      // 确保在合理范围内
+      safeValues.service_radius = Math.min(50, Math.max(0.1, safeValues.service_radius));
+      
+      console.log("处理后的服务半径:", safeValues.service_radius);
     }
-  };
+
+    console.log("处理后的提交数据:", safeValues);
+    console.log("是否管理员:", roles?.includes('admin'));
+
+    // 使用管理员专用路由
+    const updateResponse = await request({
+      url: `/merchants/admin/${id}`,  // 管理员专用路由
+      method: 'put',
+      data: safeValues,
+      timeout: 15000
+    });
+
+    console.log("更新成功，响应:", updateResponse);
+    message.success('商户更新成功');
+
+    // 确保先重置提交状态再导航
+    setSubmitting(false);
+
+    // 使用setTimeout确保状态更新后再导航
+    setTimeout(() => {
+      navigateToList();
+    }, 100);
+
+  } catch (error) {
+    console.error('商户更新失败:', error);
+
+    // 安全地获取错误消息
+    let errorDetail = "未知错误";
+
+    if (error.response?.data?.detail) {
+      const detail = error.response.data.detail;
+      errorDetail = typeof detail === 'string' ? detail : JSON.stringify(detail);
+    } else if (error.message) {
+      errorDetail = error.message;
+    }
+
+    setErrorMsg(`商户更新失败: ${errorDetail}`);
+    message.error('商户更新失败，请检查表单数据或权限');
+  } finally {
+    // 确保在任何情况下都重置提交状态
+    setSubmitting(false);
+    console.log("表单提交流程结束，submitting状态已重置为:", false);
+  }
+};
 
   // 调试功能：手动触发表单填充
   const triggerFormFill = () => {

@@ -140,6 +140,9 @@ async def admin_update_merchant(
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """管理员更新商户信息（需要管理员权限）"""
+    print(f"管理员更新商户API调用，商户ID: {merchant_id}")
+    print(f"请求体原始数据: {merchant_data}")
+    print(f"服务半径值: {merchant_data.service_radius}")
     # 获取商户
     merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
     if not merchant:

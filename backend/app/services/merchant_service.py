@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, desc, asc
+from sqlalchemy import func, desc, asc, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.crud import crud_merchant, crud_category
@@ -122,6 +122,10 @@ async def update_merchant(
     if not merchant:
         raise HTTPException(status_code=404, detail="商户不存在")
     
+    # 添加调试日志
+    print(f"更新商户ID:{merchant_id}，接收到的数据: {merchant_data.dict()}")
+    print(f"接收到的服务半径值: {merchant_data.service_radius}")
+    
     # 添加管理员检查：如果是管理员调用，则跳过权限检查
     if not is_admin:  # 非管理员才检查权限
         # 检查用户是否有权限更新此商户（只有商户自己可以更新）
@@ -129,8 +133,35 @@ async def update_merchant(
         if not user or user.merchant_id != merchant_id:
             raise HTTPException(status_code=403, detail="没有权限更新其他商户的信息")
     
+    # 记录更新前的服务半径值，用于验证
+    original_radius = merchant.service_radius
+    print(f"更新前的服务半径值: {original_radius}")
+    
+    # 特别处理服务半径字段 - 直接更新模型实例
+    if merchant_data.service_radius is not None:
+        print(f"将服务半径从 {merchant.service_radius} 更新为 {merchant_data.service_radius}")
+        merchant.service_radius = merchant_data.service_radius
+    
     # 更新商户基本信息
     updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=merchant_data)
+    
+    # 验证服务半径是否正确更新
+    print(f"更新后的服务半径: {updated_merchant.service_radius}")
+    if merchant_data.service_radius is not None and updated_merchant.service_radius != merchant_data.service_radius:
+        print(f"警告：服务半径更新失败！期望值: {merchant_data.service_radius}, 实际值: {updated_merchant.service_radius}")
+        # 强制更新服务半径 - 使用原始SQL
+        try:
+            db.execute(
+                text("UPDATE merchants SET service_radius = :radius WHERE id = :id"),
+                {"radius": float(merchant_data.service_radius), "id": merchant_id}
+            )
+            db.commit()
+            print(f"通过原始SQL更新服务半径成功")
+            # 重新获取商户以确认更新
+            updated_merchant = crud_merchant.get(db, id=merchant_id)
+            print(f"最终服务半径值: {updated_merchant.service_radius}")
+        except Exception as e:
+            print(f"SQL更新服务半径失败: {str(e)}")
     
     # 更新分类关联
     if merchant_data.category_ids is not None:

@@ -117,6 +117,6 @@ class GeocodeResponse(BaseModel):
     city: str
     district: str
     adcode: str
-    confidence: Optional[int] = None  # 匹配程度，腾讯地图API返回
+    confidence: Optional[float] = None  # 将int改为float
 
 

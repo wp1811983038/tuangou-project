@@ -2,19 +2,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   Form, Input, Select, InputNumber, Upload, Button, Space, Row, Col,
-  Card, Divider, message, Tooltip
+  Card, Divider, message, Tooltip, Collapse, Alert
 } from 'antd';
 import {
   LoadingOutlined, PlusOutlined, InfoCircleOutlined, 
-  EnvironmentOutlined // 新增图标
+  EnvironmentOutlined
 } from '@ant-design/icons';
-import request from '../../../utils/request'; // 添加这一行导入request
-
+import request from '../../../utils/request';
 import { fetchMerchantCategories } from '../../../api/merchant';
-
 
 const { Option } = Select;
 const { TextArea } = Input;
+const { Panel } = Collapse;
 
 const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
   const [form] = Form.useForm();
@@ -24,8 +23,10 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
   const [licenseUrl, setLicenseUrl] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  // 新增状态
   const [geocodingLoading, setGeocodingLoading] = useState(false);
+  
+  // 添加服务半径边界状态
+  const [boundaryPoints, setBoundaryPoints] = useState(null);
 
   // 传递表单引用给父组件
   useEffect(() => {
@@ -102,7 +103,8 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
           cover: initialValues.cover || '',
           status: initialValues.status !== undefined ? initialValues.status : 1,
           commission_rate: initialValues.commission_rate !== undefined ? initialValues.commission_rate : 0.05,
-          rating: initialValues.rating !== undefined ? initialValues.rating : 5.0
+          rating: initialValues.rating !== undefined ? initialValues.rating : 5.0,
+          service_radius: initialValues.service_radius  // 添加服务半径
         };
 
         console.log("设置表单值:", formValues);
@@ -124,6 +126,15 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
           if (initialValues.logo && !logoUrl) setLogoUrl(initialValues.logo);
           if (initialValues.cover && !coverUrl) setCoverUrl(initialValues.cover);
           if (initialValues.license_image && !licenseUrl) setLicenseUrl(initialValues.license_image);
+          
+          // 计算服务半径边界
+          const latitude = currentValues.latitude;
+          const longitude = currentValues.longitude;
+          const serviceRadius = currentValues.service_radius ;
+          
+          if (latitude && longitude) {
+            calculateBoundaries(latitude, longitude, serviceRadius);
+          }
         }, 300);
 
       } catch (error) {
@@ -199,6 +210,39 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
       setUploadLoading(false);
     }
   };
+  
+  // 计算服务半径边界的函数
+  const calculateBoundaries = (latitude, longitude, radius) => {
+    if (!latitude || !longitude || !radius) {
+      setBoundaryPoints(null);
+      return;
+    }
+    
+    // 地球半径(千米)
+    const EARTH_RADIUS = 6371;
+    
+    // 转换纬度为弧度
+    const latRad = latitude * Math.PI / 180;
+    
+    // 计算1度经度对应的公里数（与纬度有关）
+    const kmPerLngDegree = 111.32 * Math.cos(latRad);
+    // 计算1度纬度对应的公里数（基本固定）
+    const kmPerLatDegree = 111.32;
+    
+    // 计算边界
+    const north = latitude + (radius / kmPerLatDegree);
+    const south = latitude - (radius / kmPerLatDegree);
+    const east = longitude + (radius / kmPerLngDegree);
+    const west = longitude - (radius / kmPerLngDegree);
+    
+    setBoundaryPoints({
+      north: north.toFixed(6),
+      south: south.toFixed(6),
+      east: east.toFixed(6),
+      west: west.toFixed(6),
+      radius
+    });
+  };
 
   // 上传按钮组件
   const uploadButton = (
@@ -217,7 +261,7 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
     }
   };
 
-  // 新增获取经纬度的函数
+  // 获取经纬度的函数
   const handleGetCoordinates = async () => {
     // 获取表单中的地址信息
     const province = form.getFieldValue('province');
@@ -253,6 +297,12 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
           latitude: response.latitude,
           longitude: response.longitude,
         });
+        
+        // 获取服务半径
+        const serviceRadius = form.getFieldValue('service_radius') || 5.0;
+        
+        // 计算服务半径边界
+        calculateBoundaries(response.latitude, response.longitude, serviceRadius);
 
         message.success(`获取经纬度成功：(${response.latitude.toFixed(6)}, ${response.longitude.toFixed(6)})`);
       } else {
@@ -266,6 +316,34 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
     }
   };
 
+  // 添加边界信息展示组件
+  const renderBoundaryInfo = () => {
+    if (!boundaryPoints) return null;
+    
+    return (
+      <Collapse ghost style={{ marginBottom: 16 }}>
+        <Panel header="服务半径边界经纬度" key="1">
+          <Alert
+            message="服务半径边界经纬度信息"
+            description={
+              <div>
+                <p>中心点: ({form.getFieldValue('latitude')?.toFixed(6)}, {form.getFieldValue('longitude')?.toFixed(6)})</p>
+                <p>服务半径: {boundaryPoints.radius} 公里</p>
+                <p>北边界纬度: {boundaryPoints.north}°</p>
+                <p>南边界纬度: {boundaryPoints.south}°</p>
+                <p>东边界经度: {boundaryPoints.east}°</p>
+                <p>西边界经度: {boundaryPoints.west}°</p>
+                <p>覆盖范围: 约 {(Math.PI * Math.pow(boundaryPoints.radius, 2)).toFixed(2)} 平方公里</p>
+              </div>
+            }
+            type="info"
+            showIcon
+          />
+        </Panel>
+      </Collapse>
+    );
+  };
+
   return (
     <Form
       form={form}
@@ -275,6 +353,7 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
         status: 1,
         commission_rate: 0.05,
         rating: 5.0,
+        service_radius: 5.0,
         ...initialValues // 确保初始值也在这里传入
       }}
       requiredMark={true}
@@ -422,6 +501,11 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
                     precision={6}
                     min={-90}
                     max={90}
+                    onChange={(value) => {
+                      const lng = form.getFieldValue('longitude');
+                      const radius = form.getFieldValue('service_radius');
+                      calculateBoundaries(value, lng, radius);
+                    }}
                   />
                 </Form.Item>
               </Col>
@@ -437,10 +521,45 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
                     precision={6}
                     min={-180}
                     max={180}
+                    onChange={(value) => {
+                      const lat = form.getFieldValue('latitude');
+                      const radius = form.getFieldValue('service_radius');
+                      calculateBoundaries(lat, value, radius);
+                    }}
                   />
                 </Form.Item>
               </Col>
             </Row>
+
+            {/* 添加服务半径输入 */}
+            <Form.Item
+              name="service_radius"
+              label={
+                <span>
+                  服务半径(公里)
+                  <Tooltip title="该商户提供配送服务的最大距离范围">
+                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                  </Tooltip>
+                </span>
+              }
+            >
+              <InputNumber
+                style={{ width: '100%' }}
+                min={0.1}
+                max={50}
+                step={0.5}
+                precision={1}
+                placeholder="服务半径(公里)"
+                onChange={(value) => {
+                  const lat = form.getFieldValue('latitude');
+                  const lng = form.getFieldValue('longitude');
+                  calculateBoundaries(lat, lng, value);
+                }}
+              />
+            </Form.Item>
+
+            {/* 添加服务半径边界信息 */}
+            {renderBoundaryInfo()}
           </Card>
 
           <Card title="资质信息" style={{ marginTop: 16 }}>
