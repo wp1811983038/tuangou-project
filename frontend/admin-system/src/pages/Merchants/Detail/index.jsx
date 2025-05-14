@@ -1,20 +1,23 @@
 // src/pages/Merchants/Detail/index.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Card, Descriptions, Badge, Button, Tabs, Table, Image, Row, Col, Space, 
-  Statistic, Divider, message, Modal, Tag, Typography, Skeleton, Empty, Tooltip
+import {
+  Card, Descriptions, Badge, Button, Tabs, Table, Image, Row, Col, Space,
+  Statistic, Divider, message, Modal, Tag, Typography, Skeleton, Empty, Tooltip,
+  Collapse, Alert
 } from 'antd';
-import { 
+import {
   ArrowLeftOutlined, EditOutlined, ShopOutlined, EnvironmentOutlined,
   PhoneOutlined, UserOutlined, ShoppingOutlined, OrderedListOutlined,
   PieChartOutlined, ClockCircleOutlined, ExclamationCircleOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined, ReloadOutlined, AimOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import request from '../../../utils/request';
+import './index.less'; // 确保样式文件被导入
 
 const { TabPane } = Tabs;
 const { Title, Paragraph, Text } = Typography;
+const { Panel } = Collapse;
 
 const MerchantDetail = () => {
   const { id } = useParams();
@@ -25,8 +28,9 @@ const MerchantDetail = () => {
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('info');
   const [stats, setStats] = useState({ totalSales: 0, totalOrders: 0, avgRating: 0 });
+  const [boundaryPoints, setBoundaryPoints] = useState(null);
   const isLoadingRef = useRef(false);
-  
+
   // 状态标签映射
   const statusMap = {
     0: { text: '待审核', color: 'orange' },
@@ -34,29 +38,84 @@ const MerchantDetail = () => {
     2: { text: '已禁用', color: 'red' }
   };
 
+  // 计算服务半径边界的函数
+  const calculateBoundaryCoordinates = (latitude, longitude, radius) => {
+    if (!latitude || !longitude || !radius) {
+      return null;
+    }
+
+    // 地球半径(千米)
+    const EARTH_RADIUS = 6371;
+
+    // 转换纬度为弧度
+    const latRad = latitude * Math.PI / 180;
+
+    // 计算1度经度对应的公里数（与纬度有关）
+    const kmPerLngDegree = 111.32 * Math.cos(latRad);
+    // 计算1度纬度对应的公里数（基本固定）
+    const kmPerLatDegree = 111.32;
+
+    // 计算边界
+    const north = latitude + (radius / kmPerLatDegree);
+    const south = latitude - (radius / kmPerLatDegree);
+    const east = longitude + (radius / kmPerLngDegree);
+    const west = longitude - (radius / kmPerLngDegree);
+
+    return {
+      north: north.toFixed(6),
+      south: south.toFixed(6),
+      east: east.toFixed(6),
+      west: west.toFixed(6),
+      radius
+    };
+  };
+
   // 加载商户详情
   const loadMerchantDetail = async () => {
     if (isLoadingRef.current) return;
-    
+
     try {
       isLoadingRef.current = true;
       setLoading(true);
-      
+
+      // 添加时间戳参数，确保获取最新数据
+      const timestamp = Date.now();
+
       // 调用API获取商户详情
       const response = await request({
-        url: `/merchants/${id}/`,
+        url: `/merchants/${id}?_t=${timestamp}`,
         method: 'get',
-        timeout: 8000
+        timeout: 10000,
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        }
       });
-      
-      setMerchant(response.data || response);
-      
+
+      const merchantData = response.data || response;
+      setMerchant(merchantData);
+
+      // 计算服务半径边界
+      if (merchantData.latitude && merchantData.longitude && merchantData.service_radius) {
+        const boundary = calculateBoundaryCoordinates(
+          merchantData.latitude,
+          merchantData.longitude,
+          merchantData.service_radius
+        );
+        setBoundaryPoints(boundary);
+        console.log("服务半径边界计算完成:", boundary);
+      } else {
+        setBoundaryPoints(null);
+      }
+
       // 加载统计数据 (这里示例数据，实际应从API获取)
       setStats({
         totalSales: Math.floor(Math.random() * 50000),
         totalOrders: Math.floor(Math.random() * 500),
         avgRating: (Math.random() * 2 + 3).toFixed(1)
       });
+
+      console.log("商户详情加载成功，服务半径:", merchantData.service_radius);
     } catch (error) {
       console.error('获取商户详情失败', error);
       message.error('获取商户详情失败');
@@ -66,11 +125,11 @@ const MerchantDetail = () => {
       isLoadingRef.current = false;
     }
   };
-  
+
   // 加载商户商品
   const loadMerchantProducts = async () => {
     if (activeTab !== 'products') return;
-    
+
     try {
       const response = await request({
         url: '/products/',
@@ -78,7 +137,7 @@ const MerchantDetail = () => {
         params: { merchant_id: id, page_size: 10 },
         timeout: 8000
       });
-      
+
       setProducts(response.data?.items || []);
     } catch (error) {
       console.error('获取商户商品失败', error);
@@ -86,11 +145,11 @@ const MerchantDetail = () => {
       setProducts([]);
     }
   };
-  
+
   // 加载商户订单
   const loadMerchantOrders = async () => {
     if (activeTab !== 'orders') return;
-    
+
     try {
       const response = await request({
         url: '/orders/',
@@ -98,7 +157,7 @@ const MerchantDetail = () => {
         params: { merchant_id: id, page_size: 10 },
         timeout: 8000
       });
-      
+
       setOrders(response.data?.items || []);
     } catch (error) {
       console.error('获取商户订单失败', error);
@@ -131,7 +190,7 @@ const MerchantDetail = () => {
   // 处理状态变更
   const handleStatusChange = async (newStatus) => {
     const statusText = newStatus === 1 ? '启用' : '禁用';
-    
+
     Modal.confirm({
       title: `确定要${statusText}该商户吗？`,
       icon: <ExclamationCircleOutlined />,
@@ -145,7 +204,7 @@ const MerchantDetail = () => {
             method: 'put',
             data: { status: newStatus }
           });
-          
+
           message.success(`商户${statusText}成功`);
           loadMerchantDetail(); // 刷新商户信息
         } catch (error) {
@@ -170,11 +229,11 @@ const MerchantDetail = () => {
       key: 'thumbnail',
       width: 90,
       render: (thumbnail, record) => (
-        <Image 
+        <Image
           src={thumbnail || 'https://via.placeholder.com/50'}
-          alt={record.name} 
-          width={50} 
-          height={50} 
+          alt={record.name}
+          width={50}
+          height={50}
           style={{ objectFit: 'cover', borderRadius: '4px' }}
           fallback="https://via.placeholder.com/50?text=暂无图片"
         />
@@ -184,7 +243,7 @@ const MerchantDetail = () => {
       title: '商品名称',
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <Text ellipsis style={{maxWidth: 200}}>{text}</Text>
+      render: (text) => <Text ellipsis style={{ maxWidth: 200 }}>{text}</Text>
     },
     {
       title: '价格',
@@ -208,9 +267,9 @@ const MerchantDetail = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Badge 
-          status={status === 1 ? 'success' : 'default'} 
-          text={status === 1 ? '上架' : '下架'} 
+        <Badge
+          status={status === 1 ? 'success' : 'default'}
+          text={status === 1 ? '上架' : '下架'}
         />
       )
     },
@@ -219,15 +278,15 @@ const MerchantDetail = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             size="small"
             onClick={() => navigate(`/products/detail/${record.id}`)}
           >
             查看
           </Button>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             size="small"
             onClick={() => navigate(`/products/edit/${record.id}`)}
           >
@@ -283,8 +342,8 @@ const MerchantDetail = () => {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Button 
-          type="link" 
+        <Button
+          type="link"
           size="small"
           onClick={() => navigate(`/orders/detail/${record.id}`)}
         >
@@ -298,8 +357,8 @@ const MerchantDetail = () => {
   const renderMerchantMap = () => {
     if (!merchant || !merchant.latitude || !merchant.longitude) {
       return (
-        <Empty 
-          image={Empty.PRESENTED_IMAGE_SIMPLE} 
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="暂无位置信息"
         />
       );
@@ -314,10 +373,10 @@ const MerchantDetail = () => {
       // 不包含服务区域的普通地图
       mapUrl = `https://apis.map.qq.com/ws/staticmap/v2/?center=${merchant.latitude},${merchant.longitude}&zoom=16&size=600*300&markers=size:large|color:blue|label:商|${merchant.latitude},${merchant.longitude}&key=您的腾讯地图密钥`;
     }
-    
+
     return (
       <div style={{ textAlign: 'center' }}>
-        <Image 
+        <Image
           src={mapUrl}
           alt="商户位置"
           fallback="https://via.placeholder.com/600x300?text=地图加载失败"
@@ -339,6 +398,58 @@ const MerchantDetail = () => {
             </>
           )}
         </div>
+
+        {/* 服务半径边界坐标信息 */}
+        {boundaryPoints && (
+          <div style={{ marginTop: 16, textAlign: 'left' }}>
+            <Collapse ghost>
+              <Panel
+                header={
+                  <Text strong>
+                    <EnvironmentOutlined /> 服务半径边界坐标
+                    <Text type="secondary" style={{ marginLeft: 8, fontWeight: 'normal' }}>
+                      (点击展开查看详情)
+                    </Text>
+                  </Text>
+                }
+                key="boundary"
+              >
+                <Alert
+                  type="info"
+                  showIcon
+                  message="服务覆盖范围坐标"
+                  description={
+                    <div>
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>中心点:</Text> {merchant.latitude.toFixed(6)}, {merchant.longitude.toFixed(6)}
+                      </p>
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>服务半径:</Text> {merchant.service_radius} 公里
+                      </p>
+                      <Divider style={{ margin: '8px 0' }} />
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>北边界纬度:</Text> {boundaryPoints.north}°
+                      </p>
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>南边界纬度:</Text> {boundaryPoints.south}°
+                      </p>
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>东边界经度:</Text> {boundaryPoints.east}°
+                      </p>
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>西边界经度:</Text> {boundaryPoints.west}°
+                      </p>
+                      <Divider style={{ margin: '8px 0' }} />
+                      <p style={{ margin: '4px 0' }}>
+                        <Text strong>覆盖范围:</Text> 约 {(Math.PI * Math.pow(merchant.service_radius, 2)).toFixed(2)} 平方公里
+                      </p>
+                    </div>
+                  }
+                />
+              </Panel>
+            </Collapse>
+          </div>
+        )}
       </div>
     );
   };
@@ -356,19 +467,19 @@ const MerchantDetail = () => {
   if (!merchant) {
     return (
       <Card title="商户详情">
-        <Empty 
+        <Empty
           description={
             <span>
               未找到商户信息
-              <Button 
-                type="link" 
+              <Button
+                type="link"
                 onClick={loadMerchantDetail}
                 style={{ marginLeft: 8 }}
               >
                 重新加载
               </Button>
             </span>
-          } 
+          }
         />
       </Card>
     );
@@ -389,6 +500,19 @@ const MerchantDetail = () => {
         }
         extra={
           <Space>
+            {/* 添加刷新按钮 */}
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                setLoading(true);
+                loadMerchantDetail().finally(() => {
+                  message.success('数据已刷新');
+                  setLoading(false);
+                });
+              }}
+            >
+              刷新数据
+            </Button>
             <Button
               type="primary"
               icon={<EditOutlined />}
@@ -441,7 +565,7 @@ const MerchantDetail = () => {
               </div>
 
               <Divider style={{ margin: '12px 0' }} />
-              
+
               <Row gutter={16}>
                 <Col span={8}>
                   <Statistic
@@ -471,7 +595,7 @@ const MerchantDetail = () => {
               </Row>
 
               <Divider style={{ margin: '16px 0' }} />
-              
+
               {/* 统计数据 */}
               <Row gutter={16}>
                 <Col span={8}>
@@ -496,7 +620,7 @@ const MerchantDetail = () => {
                   />
                 </Col>
               </Row>
-              
+
               {/* 分类标签 */}
               <Divider style={{ margin: '16px 0' }}>分类</Divider>
               <div style={{ textAlign: 'center' }}>
@@ -510,7 +634,7 @@ const MerchantDetail = () => {
                   <Text type="secondary">暂无分类</Text>
                 )}
               </div>
-              
+
               {/* 营业时间 */}
               <Divider style={{ margin: '16px 0' }}>营业信息</Divider>
               <p>
@@ -523,13 +647,13 @@ const MerchantDetail = () => {
               </p>
               {merchant.service_radius && (
                 <p style={{ marginTop: 8 }}>
-                  <EnvironmentOutlined style={{ marginRight: 8 }} />
+                  <AimOutlined style={{ marginRight: 8 }} />
                   <Text>服务半径: {merchant.service_radius} 公里</Text>
                 </p>
               )}
             </Card>
           </Col>
-          
+
           <Col xs={24} sm={24} md={16} lg={17} xl={18}>
             <Tabs activeKey={activeTab} onChange={handleTabChange} type="card">
               <TabPane tab="基本信息" key="info">
@@ -566,7 +690,7 @@ const MerchantDetail = () => {
                     <Descriptions.Item label="营业时间" span={3}>
                       {merchant.business_hours || '未设置'}
                     </Descriptions.Item>
-                    {/* 添加服务半径字段 */}
+                    {/* 服务半径字段 */}
                     <Descriptions.Item label="服务半径" span={3}>
                       {merchant.service_radius ? (
                         <Space>
@@ -600,17 +724,139 @@ const MerchantDetail = () => {
                   )}
                 </Card>
               </TabPane>
-              
-              <TabPane 
-                tab={<span><ShoppingOutlined /> 商品列表</span>} 
+
+              {/* 服务覆盖范围专用标签页 */}
+              <TabPane
+                tab={<span><AimOutlined /> 服务范围</span>}
+                key="service-area"
+              >
+                <Card bordered={false}>
+                  {merchant && merchant.latitude && merchant.longitude && merchant.service_radius ? (
+                    <>
+                      <Row gutter={[24, 16]}>
+                        <Col span={12}>
+                          <Statistic
+                            title="服务半径"
+                            value={merchant.service_radius}
+                            suffix="公里"
+                            precision={1}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <Statistic
+                            title="覆盖面积"
+                            value={(Math.PI * Math.pow(merchant.service_radius, 2)).toFixed(2)}
+                            suffix="平方公里"
+                          />
+                        </Col>
+                      </Row>
+
+                      <Divider>中心坐标</Divider>
+
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Statistic
+                            title="纬度"
+                            value={merchant.latitude.toFixed(6)}
+                            valueStyle={{ fontSize: '18px' }}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <Statistic
+                            title="经度"
+                            value={merchant.longitude.toFixed(6)}
+                            valueStyle={{ fontSize: '18px' }}
+                          />
+                        </Col>
+                      </Row>
+
+                      // 在服务范围标签页中展示边界坐标<Divider>边界坐标</Divider>
+
+                      {/* 优先使用数据库存储的边界坐标，如果没有则计算 */}
+                      {merchant.north_boundary && merchant.south_boundary &&
+                        merchant.east_boundary && merchant.west_boundary ? (
+                        <Row gutter={[16, 16]}>
+                          <Col span={12}>
+                            <Card size="small" title="北边界纬度" bordered={false}>
+                              {merchant.north_boundary.toFixed(6)}°
+                            </Card>
+                          </Col>
+                          <Col span={12}>
+                            <Card size="small" title="南边界纬度" bordered={false}>
+                              {merchant.south_boundary.toFixed(6)}°
+                            </Card>
+                          </Col>
+                          <Col span={12}>
+                            <Card size="small" title="东边界经度" bordered={false}>
+                              {merchant.east_boundary.toFixed(6)}°
+                            </Card>
+                          </Col>
+                          <Col span={12}>
+                            <Card size="small" title="西边界经度" bordered={false}>
+                              {merchant.west_boundary.toFixed(6)}°
+                            </Card>
+                          </Col>
+                        </Row>
+                      ) : (
+                        // 如果数据库中没有，则使用前端计算的边界
+                        boundaryPoints ? (
+                          <Row gutter={[16, 16]}>
+                            <Col span={12}>
+                              <Card size="small" title="北边界纬度" bordered={false}>
+                                {boundaryPoints.north}°
+                              </Card>
+                            </Col>
+                            <Col span={12}>
+                              <Card size="small" title="南边界纬度" bordered={false}>
+                                {boundaryPoints.south}°
+                              </Card>
+                            </Col>
+                            <Col span={12}>
+                              <Card size="small" title="东边界经度" bordered={false}>
+                                {boundaryPoints.east}°
+                              </Card>
+                            </Col>
+                            <Col span={12}>
+                              <Card size="small" title="西边界经度" bordered={false}>
+                                {boundaryPoints.west}°
+                              </Card>
+                            </Col>
+                          </Row>
+                        ) : (
+                          <Empty description="无法计算边界坐标" />
+                        )
+                      )}
+
+                      <Divider>覆盖区域说明</Divider>
+                      <Alert
+                        message="服务半径说明"
+                        description={
+                          <div>
+                            <p>服务半径是指从商户位置出发，能够提供配送服务的最大距离范围。</p>
+                            <p>当前设置的服务半径为 {merchant.service_radius} 公里，覆盖面积约 {(Math.PI * Math.pow(merchant.service_radius, 2)).toFixed(2)} 平方公里。</p>
+                            <p>在此范围内的用户可以享受商户提供的配送服务。</p>
+                          </div>
+                        }
+                        type="info"
+                        showIcon
+                      />
+                    </>
+                  ) : (
+                    <Empty description="暂无服务半径信息" />
+                  )}
+                </Card>
+              </TabPane>
+
+              <TabPane
+                tab={<span><ShoppingOutlined /> 商品列表</span>}
                 key="products"
               >
                 <Card bordered={false}>
                   <Row style={{ marginBottom: 16 }}>
                     <Col span={24}>
                       <Space>
-                        <Button 
-                          type="primary" 
+                        <Button
+                          type="primary"
                           onClick={() => navigate(`/products/create?merchant_id=${id}`)}
                         >
                           添加商品
@@ -631,9 +877,9 @@ const MerchantDetail = () => {
                   />
                 </Card>
               </TabPane>
-              
-              <TabPane 
-                tab={<span><OrderedListOutlined /> 订单列表</span>} 
+
+              <TabPane
+                tab={<span><OrderedListOutlined /> 订单列表</span>}
                 key="orders"
               >
                 <Card bordered={false}>
@@ -654,13 +900,13 @@ const MerchantDetail = () => {
                   />
                 </Card>
               </TabPane>
-              
+
               <TabPane
                 tab={<span><PieChartOutlined /> 数据分析</span>}
                 key="stats"
               >
                 <Card bordered={false}>
-                  <Empty 
+                  <Empty
                     description="数据分析功能即将上线"
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                   >

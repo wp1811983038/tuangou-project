@@ -10,7 +10,7 @@
   <!-- 登录方式选择 -->
   <view class="login-type-tabs">
     <view class="tab-item {{loginType === 'wechat' ? 'active' : ''}}" bindtap="switchLoginType" data-type="wechat">微信登录</view>
-    <view class="tab-item {{loginType === 'phone' ? 'active' : ''}}" bindtap="switchLoginType" data-type="phone">手机号登录</view>
+    <view class="tab-item {{loginType === 'phone' ? 'active' : ''}}" bindtap="switchLoginType" data-type="phone" style="position: relative; left: 0rpx; top: 2rpx">手机号登录</view>
   </view>
 
   <!-- 微信登录面板 -->

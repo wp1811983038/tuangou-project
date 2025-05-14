@@ -92,10 +92,13 @@ const EditMerchant = () => {
     }
   }, [id, loadMerchantDetail]);
 
+  
+
   // 确保导航到详情页的函数
   const navigateToList = useCallback(() => {
     console.log('准备导航到商户列表...');
     navigate('/merchants/list');
+    
 
     // 备份方案：如果导航可能失败，使用硬重定向
     setTimeout(() => {

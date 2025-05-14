@@ -238,3 +238,33 @@ def calculate_distance(
     distance = radius * c
     
     return distance
+
+
+def calculate_boundaries(latitude: float, longitude: float, radius: float) -> dict:
+    """计算服务半径边界坐标"""
+    if not latitude or not longitude or not radius:
+        return None
+        
+    # 地球半径(千米)
+    EARTH_RADIUS = 6371
+    
+    # 转换纬度为弧度
+    lat_rad = latitude * math.pi / 180
+    
+    # 计算1度经度对应的公里数（与纬度有关）
+    km_per_lng_degree = 111.32 * math.cos(lat_rad)
+    # 计算1度纬度对应的公里数（基本固定）
+    km_per_lat_degree = 111.32
+    
+    # 计算边界
+    north = latitude + (radius / km_per_lat_degree)
+    south = latitude - (radius / km_per_lat_degree)
+    east = longitude + (radius / km_per_lng_degree)
+    west = longitude - (radius / km_per_lng_degree)
+    
+    return {
+        'north': north,
+        'south': south,
+        'east': east,
+        'west': west
+    }

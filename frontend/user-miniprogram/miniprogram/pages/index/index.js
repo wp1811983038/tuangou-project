@@ -1,6 +1,6 @@
 // pages/index/index.js
+import { getLocation, getAvailableMerchants, isInMerchantServiceArea } from '../../utils/location';
 import { checkLoginStatus } from '../../utils/auth';
-import { getLocation } from '../../utils/location';
 
 Page({
   data: {
@@ -10,12 +10,22 @@ Page({
     products: [],          // 推荐商品
     categories: [],        // 商户分类
     location: null,        // 当前位置
-    loading: true          // 加载状态
+    loading: true,         // 加载状态
+    availableMerchants: [],// 可服务的商户列表
+    hasServiceMerchant: false, // 是否有可服务商户
+    refreshingLocation: false,  // 是否正在刷新位置
+    showLocationTip: false      // 是否显示位置提示
   },
 
   onLoad: function(options) {
-    // 加载模拟数据
-    this.loadMockData();
+    // 加载缓存的位置
+    const cachedLocation = wx.getStorageSync('location');
+    if (cachedLocation) {
+      this.setData({ location: cachedLocation });
+    }
+    
+    // 加载页面数据
+    this.loadPageData();
   },
 
   onShow: function() {
@@ -26,23 +36,148 @@ Page({
     this.getCurrentLocation();
   },
 
-  // 获取当前位置
-  async getCurrentLocation() {
-    try {
-      const location = await getLocation();
-      this.setData({ location });
-    } catch (error) {
-      console.error('获取位置失败', error);
-    }
-  },
-
-  // 加载模拟数据（实际项目中会从API获取数据）
-  loadMockData() {
+  // 加载页面数据
+  loadPageData() {
+    // 显示加载状态
     this.setData({ loading: true });
     
-    // 模拟延迟加载
+    // 加载轮播图
+    this.loadBanners();
+    
+    // 加载分类
+    this.loadCategories();
+    
+    // 加载热门团购
+    this.loadGroups();
+    
+    // 加载推荐商品
+    this.loadProducts();
+  },
+
+  // 获取当前位置并判断服务范围
+// 在 pages/index/index.js 的 getCurrentLocation 方法中添加
+async getCurrentLocation() {
+  try {
+    this.setData({ refreshingLocation: true });
+    
+    const location = await getLocation();
+    
+    // 更新位置信息
+    this.setData({ 
+      location,
+      refreshingLocation: false
+    });
+    
+    // 存储位置到本地缓存
+    wx.setStorageSync('location', location);
+    
+    // 获取位置后检查可服务商户
+    await this.checkServiceAreaMerchants(location);
+  } catch (error) {
+    console.error('获取位置失败', error);
+    this.setData({ 
+      refreshingLocation: false,
+      showLocationTip: true,
+      // 添加默认位置信息，避免空指针
+      location: {
+        latitude: 34.8637,
+        longitude: 113.652,
+        name: '默认位置'
+      }
+    });
+    
+    // 即使位置获取失败，也加载基本数据
+    this.loadMerchants();
+    
+    wx.showToast({
+      title: '位置获取失败，将使用默认数据',
+      icon: 'none',
+      duration: 2000
+    });
+  }
+},
+  
+  // 检查可服务商户
+  async checkServiceAreaMerchants(location) {
+    try {
+      if (!location) return;
+      
+      // 设置加载状态
+      if (!this.data.loading) {
+        this.setData({ loading: true });
+      }
+      
+      // 获取可服务商户
+      const merchants = await getAvailableMerchants(location);
+      
+      // 判断是否有可服务商户
+      const hasServiceMerchant = merchants.length > 0;
+      
+      this.setData({
+        hasServiceMerchant,
+        availableMerchants: merchants,
+        loading: false
+      });
+      
+      // 如果有可服务商户，更新推荐商户列表
+      if (hasServiceMerchant) {
+        this.setData({
+          merchants: merchants.slice(0, 3) // 最多显示3个
+        });
+      } else {
+        // 没有可服务商户时，加载所有商户
+        this.loadMerchants();
+      }
+    } catch (error) {
+      console.error('检查商户服务范围失败', error);
+      this.setData({ loading: false });
+      
+      // 发生错误时，加载所有商户
+      this.loadMerchants();
+    }
+  },
+  
+  // 选择位置
+  chooseLocation() {
+    wx.chooseLocation({
+      success: async (res) => {
+        const location = {
+          latitude: res.latitude,
+          longitude: res.longitude,
+          name: res.name || res.address,
+          address: res.address
+        };
+        
+        // 更新位置并检查商户服务范围
+        this.setData({ 
+          location,
+          showLocationTip: false 
+        });
+        
+        // 保存位置到缓存
+        wx.setStorageSync('location', location);
+        
+        // 检查服务范围
+        await this.checkServiceAreaMerchants(location);
+      },
+      fail: (err) => {
+        console.error('选择位置失败', err);
+        
+        // 如果是用户取消，不提示错误
+        if (err.errMsg !== "chooseLocation:fail cancel") {
+          wx.showToast({
+            title: '选择位置失败',
+            icon: 'none'
+          });
+        }
+      }
+    });
+  },
+  
+  // 加载轮播图
+  loadBanners() {
+    // 模拟轮播图数据
     setTimeout(() => {
-      // 轮播图模拟数据
       const banners = [
         {
           id: 1,
@@ -64,7 +199,14 @@ Page({
         }
       ];
       
-      // 分类模拟数据
+      this.setData({ banners });
+    }, 300);
+  },
+  
+  // 加载分类
+  loadCategories() {
+    // 模拟分类数据
+    setTimeout(() => {
       const categories = [
         { id: 1, name: '美食', icon: '/assets/images/logo.png' },
         { id: 2, name: '蔬果', icon: '/assets/images/logo.png' },
@@ -73,7 +215,14 @@ Page({
         { id: 5, name: '饮品', icon: '/assets/images/logo.png' }
       ];
       
-      // 商户模拟数据
+      this.setData({ categories });
+    }, 300);
+  },
+  
+  // 加载商户数据
+  loadMerchants() {
+    // 模拟商户数据
+    setTimeout(() => {
       const merchants = [
         {
           id: 1,
@@ -81,7 +230,10 @@ Page({
           logo: '/assets/images/logo.png',
           rating: 4.8,
           distance: 1.2,
-          brief: '新鲜水果，当季蔬菜'
+          brief: '新鲜水果，当季蔬菜',
+          latitude: 34.8637,
+          longitude: 113.652,
+          service_radius: 2.5
         },
         {
           id: 2,
@@ -89,11 +241,21 @@ Page({
           logo: '/assets/images/logo.png',
           rating: 4.5,
           distance: 2.5,
-          brief: '手工面包，新鲜出炉'
+          brief: '手工面包，新鲜出炉',
+          latitude: 34.8630,
+          longitude: 113.650,
+          service_radius: 3.0
         }
       ];
       
-      // 团购模拟数据
+      this.setData({ merchants });
+    }, 300);
+  },
+  
+  // 加载团购数据
+  loadGroups() {
+    // 模拟团购数据
+    setTimeout(() => {
       const groups = [
         {
           id: 1,
@@ -130,7 +292,14 @@ Page({
         }
       ];
       
-      // 商品模拟数据
+      this.setData({ groups });
+    }, 400);
+  },
+  
+  // 加载商品数据
+  loadProducts() {
+    // 模拟商品数据
+    setTimeout(() => {
       const products = [
         {
           id: 1,
@@ -171,10 +340,6 @@ Page({
       ];
       
       this.setData({
-        banners,
-        categories,
-        merchants,
-        groups,
         products,
         loading: false
       });
@@ -183,7 +348,13 @@ Page({
 
   // 下拉刷新
   onPullDownRefresh: function() {
-    this.loadMockData();
+    // 获取最新位置
+    this.getCurrentLocation();
+    
+    // 重新加载数据
+    this.loadPageData();
+    
+    // 停止下拉刷新
     wx.stopPullDownRefresh();
   },
 
@@ -252,6 +423,21 @@ Page({
   viewAllMerchants() {
     wx.switchTab({ url: '/pages/category/index' });
   },
+  
+  // 查看全部可服务商户
+  viewAllServiceMerchants() {
+    // 如果没有位置信息，先获取位置
+    if (!this.data.location) {
+      this.getCurrentLocation();
+      return;
+    }
+    
+    // 跳转到商户列表页，传递位置参数
+    const { latitude, longitude } = this.data.location;
+    wx.navigateTo({ 
+      url: `/pages/merchant/list/index?latitude=${latitude}&longitude=${longitude}&title=可服务商户&serviceOnly=true` 
+    });
+  },
 
   // 查看全部团购
   viewAllGroups() {
@@ -261,5 +447,15 @@ Page({
   // 查看全部商品
   viewAllProducts() {
     wx.navigateTo({ url: '/pages/product/list/index' });
+  },
+  
+  // 关闭位置提示
+  closeLocationTip() {
+    this.setData({ showLocationTip: false });
+  },
+  
+  // 刷新位置
+  refreshLocation() {
+    this.getCurrentLocation();
   }
-})
+});

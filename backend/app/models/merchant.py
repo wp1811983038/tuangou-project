@@ -25,6 +25,11 @@ class Merchant(Base):
     latitude = Column(Float, nullable=True, comment="纬度")
     longitude = Column(Float, nullable=True, comment="经度")
     service_radius = Column(Float, default=5.0, nullable=True, comment="服务半径(公里)")
+    # 新增字段 - 服务范围边界坐标
+    north_boundary = Column(Float, nullable=True, comment="北边界纬度")
+    south_boundary = Column(Float, nullable=True, comment="南边界纬度")
+    east_boundary = Column(Float, nullable=True, comment="东边界经度")
+    west_boundary = Column(Float, nullable=True, comment="西边界经度")
     business_hours = Column(String(128), nullable=True, comment="营业时间")
     status = Column(Integer, default=0, comment="状态: 0-待审核, 1-正常, 2-已禁用")
     rating = Column(Float, default=5.0, comment="评分")

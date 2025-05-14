@@ -29,7 +29,8 @@
     "components/loading/index",
     "components/empty-state/index",
     "components/price/index",
-    "components/count-down/index"
+    "components/count-down/index",
+    "pages/merchant/list/index"
   ],
   "window": {
     "backgroundTextStyle": "light",

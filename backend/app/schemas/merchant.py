@@ -52,6 +52,11 @@ class MerchantBase(BaseModel):
     business_hours: Optional[str] = None
     # 添加服务半径字段
     service_radius: Optional[float] = Field(5.0, ge=0.1, le=50.0, description="服务半径(公里)")
+    # 服务范围边界坐标
+    north_boundary: Optional[float] = None
+    south_boundary: Optional[float] = None
+    east_boundary: Optional[float] = None
+    west_boundary: Optional[float] = None
 
 
 class MerchantCreate(MerchantBase):
@@ -77,6 +82,10 @@ class MerchantUpdate(BaseModel):
     longitude: Optional[float] = None
     business_hours: Optional[str] = None
     service_radius: Optional[float] = None  # 服务半径字段
+    north_boundary: Optional[float] = None
+    south_boundary: Optional[float] = None
+    east_boundary: Optional[float] = None
+    west_boundary: Optional[float] = None
     license_number: Optional[str] = None
     license_image: Optional[str] = None
     category_ids: Optional[List[int]] = None

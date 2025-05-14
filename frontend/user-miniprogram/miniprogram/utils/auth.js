@@ -192,7 +192,8 @@ export const phoneLogin = async (phone, password) => {
  */
 export const getUserDetail = async () => {
   try {
-    const result = await post(apiPath.user.profile);
+    // 将post改为get
+    const result = await get(apiPath.user.profile);
     
     // 存储用户信息
     setUserInfo(result);

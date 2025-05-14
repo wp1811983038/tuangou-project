@@ -1,10 +1,25 @@
 <!--index.wxml-->
 <view class="container">
+  <!-- 位置授权提示 -->
+  <view class="location-tip" wx:if="{{showLocationTip}}">
+    <view class="location-tip-content">
+      <view class="location-tip-icon">
+        <icon type="warn" size="16" color="#FF4D4F"></icon>
+      </view>
+      <view class="location-tip-text">位置获取失败，部分功能可能受限</view>
+      <view class="location-tip-actions">
+        <text class="location-tip-btn" bindtap="refreshLocation">重试</text>
+        <text class="location-tip-close" bindtap="closeLocationTip">×</text>
+      </view>
+    </view>
+  </view>
+
   <!-- 搜索栏 -->
   <view class="search-container">
-    <view class="location" wx:if="{{location}}">
+    <view class="location" bindtap="chooseLocation">
       <text class="location-icon"></text>
       <text class="location-name">{{location.name || '定位中...'}}</text>
+      <text class="location-arrow">▼</text>
     </view>
     <view class="search-bar" bindtap="onSearchTap">
       <icon type="search" size="14" color="#999"></icon>
@@ -33,6 +48,33 @@
         <text class="category-name">{{item.name}}</text>
       </view>
     </scroll-view>
+  </view>
+
+  <!-- 可服务商户提示 -->
+  <view class="service-merchants" wx:if="{{hasServiceMerchant}}">
+    <view class="service-title">
+      <text class="title-text">可为您提供服务的商户</text>
+      <text class="view-more" bindtap="viewAllServiceMerchants">查看全部</text>
+    </view>
+    <view class="service-list">
+      <view class="service-item" wx:for="{{availableMerchants}}" wx:key="id"
+            data-id="{{item.id}}" bindtap="onMerchantTap">
+        <image src="{{item.logo}}" class="service-logo" mode="aspectFill"></image>
+        <view class="service-info">
+          <text class="service-name">{{item.name}}</text>
+          <view class="service-meta">
+            <text class="service-distance">{{item.distance}}km</text>
+            <text class="service-radius">服务半径: {{item.service_radius}}km</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 不在服务范围提示，仅当有位置信息且没有可服务商户时显示 -->
+  <view class="no-service-tip" wx:if="{{!hasServiceMerchant && location && !loading}}">
+    <icon type="info" size="20" color="#999"></icon>
+    <text>当前位置暂无可提供服务的商户</text>
   </view>
 
   <!-- 推荐商户 -->
