@@ -6,9 +6,9 @@
       <view class="location-tip-icon">
         <icon type="warn" size="16" color="#FF4D4F"></icon>
       </view>
-      <view class="location-tip-text">位置获取失败，部分功能可能受限</view>
+      <view class="location-tip-text">位置获取失败，无法显示附近商户</view>
       <view class="location-tip-actions">
-        <text class="location-tip-btn" bindtap="refreshLocation">重试</text>
+        <text class="location-tip-btn" bindtap="getCurrentLocation">重试</text>
         <text class="location-tip-close" bindtap="closeLocationTip">×</text>
       </view>
     </view>
@@ -16,139 +16,38 @@
 
   <!-- 搜索栏 -->
   <view class="search-container">
-    <view class="location" bindtap="chooseLocation">
+    <view class="location">
       <text class="location-icon"></text>
       <text class="location-name">{{location.name || '定位中...'}}</text>
-      <text class="location-arrow">▼</text>
     </view>
-    <view class="search-bar" bindtap="onSearchTap">
+    <view class="search-bar">
       <icon type="search" size="14" color="#999"></icon>
       <text class="search-placeholder">搜索商家、商品</text>
     </view>
   </view>
 
-  <!-- 轮播图 -->
-  <view class="banner-container">
-    <swiper indicator-dots="{{true}}" autoplay="{{true}}" interval="3000" duration="500" circular="{{true}}">
-      <block wx:for="{{banners}}" wx:key="id">
-        <swiper-item>
-          <image src="{{item.image_url}}" class="banner-image" mode="aspectFill" 
-                 data-url="{{item.link_url}}" data-type="{{item.link_type}}" bindtap="onBannerTap"></image>
-        </swiper-item>
-      </block>
-    </swiper>
-  </view>
-
-  <!-- 分类导航 -->
-  <view class="category-container">
-    <scroll-view scroll-x="{{true}}" class="category-scroll">
-      <view class="category-item" wx:for="{{categories}}" wx:key="id"
-            data-id="{{item.id}}" bindtap="onCategoryTap">
-        <image src="{{item.icon}}" class="category-icon" mode="aspectFit"></image>
-        <text class="category-name">{{item.name}}</text>
-      </view>
-    </scroll-view>
-  </view>
-
-  <!-- 可服务商户提示 -->
-  <view class="service-merchants" wx:if="{{hasServiceMerchant}}">
-    <view class="service-title">
-      <text class="title-text">可为您提供服务的商户</text>
-      <text class="view-more" bindtap="viewAllServiceMerchants">查看全部</text>
-    </view>
-    <view class="service-list">
-      <view class="service-item" wx:for="{{availableMerchants}}" wx:key="id"
-            data-id="{{item.id}}" bindtap="onMerchantTap">
-        <image src="{{item.logo}}" class="service-logo" mode="aspectFill"></image>
-        <view class="service-info">
-          <text class="service-name">{{item.name}}</text>
-          <view class="service-meta">
-            <text class="service-distance">{{item.distance}}km</text>
-            <text class="service-radius">服务半径: {{item.service_radius}}km</text>
-          </view>
-        </view>
-      </view>
-    </view>
-  </view>
-  
-  <!-- 不在服务范围提示，仅当有位置信息且没有可服务商户时显示 -->
-  <view class="no-service-tip" wx:if="{{!hasServiceMerchant && location && !loading}}">
-    <icon type="info" size="20" color="#999"></icon>
-    <text>当前位置暂无可提供服务的商户</text>
-  </view>
-
-  <!-- 推荐商户 -->
-  <view class="section" wx:if="{{merchants.length > 0}}">
-    <view class="section-header">
-      <text class="section-title">推荐商家</text>
-      <text class="view-more" bindtap="viewAllMerchants">查看全部</text>
-    </view>
+  <!-- 边界范围内商户显示 -->
+  <view class="nearby-merchants" wx:if="{{hasNearbyMerchant}}">
+    <view class="nearby-title">附近可为您提供服务的商户</view>
     <view class="merchant-list">
-      <view class="merchant-item" wx:for="{{merchants}}" wx:key="id"
-            data-id="{{item.id}}" bindtap="onMerchantTap">
-        <image src="{{item.logo}}" class="merchant-logo" mode="aspectFill"></image>
+      <view class="merchant-item" 
+            wx:for="{{inBoundaryMerchants}}" 
+            wx:key="id"
+            data-id="{{item.id}}" 
+            bindtap="onMerchantTap">
+        <image src="{{item.logo}}" class="merchant-logo"></image>
         <view class="merchant-info">
           <text class="merchant-name">{{item.name}}</text>
-          <view class="merchant-rating">
-            <text class="rating-score">{{item.rating || '暂无评分'}}</text>
-            <text class="merchant-distance" wx:if="{{item.distance}}">{{item.distance}}km</text>
-          </view>
-          <text class="merchant-desc">{{item.brief}}</text>
+          <text class="merchant-address">{{item.address}}</text>
         </view>
       </view>
     </view>
   </view>
 
-  <!-- 热门团购 -->
-  <view class="section" wx:if="{{groups.length > 0}}">
-    <view class="section-header">
-      <text class="section-title">热门团购</text>
-      <text class="view-more" bindtap="viewAllGroups">查看全部</text>
-    </view>
-    <scroll-view scroll-x="{{true}}" class="group-scroll">
-      <view class="group-item" wx:for="{{groups}}" wx:key="id"
-            data-id="{{item.id}}" bindtap="onGroupTap">
-        <image src="{{item.product.cover_image}}" class="group-image" mode="aspectFill"></image>
-        <view class="group-info">
-          <text class="group-title">{{item.title}}</text>
-          <view class="group-price-info">
-            <text class="group-price">¥{{item.group_price}}</text>
-            <text class="original-price">¥{{item.product.price}}</text>
-          </view>
-          <view class="group-progress">
-            <progress percent="{{item.current_count / item.target_count * 100}}" 
-                      stroke-width="3" activeColor="#FF4D4F" backgroundColor="#eee" />
-            <text class="progress-text">{{item.current_count}}/{{item.target_count}}人</text>
-          </view>
-        </view>
-      </view>
-    </scroll-view>
-  </view>
-
-  <!-- 推荐商品 -->
-  <view class="section" wx:if="{{products.length > 0}}">
-    <view class="section-header">
-      <text class="section-title">推荐商品</text>
-      <text class="view-more" bindtap="viewAllProducts">查看全部</text>
-    </view>
-    <view class="product-grid">
-      <view class="product-item" wx:for="{{products}}" wx:key="id"
-            data-id="{{item.id}}" bindtap="onProductTap">
-        <image src="{{item.cover_image}}" class="product-image" mode="aspectFill"></image>
-        <view class="product-info">
-          <text class="product-name">{{item.name}}</text>
-          <text class="product-brief">{{item.brief}}</text>
-          <view class="product-price-info">
-            <text class="product-price">¥{{item.price}}</text>
-            <text class="product-sales">已售{{item.sales_count}}件</text>
-          </view>
-          <view class="product-tags" wx:if="{{item.is_hot || item.is_new}}">
-            <text class="tag hot" wx:if="{{item.is_hot}}">热门</text>
-            <text class="tag new" wx:if="{{item.is_new}}">新品</text>
-          </view>
-        </view>
-      </view>
-    </view>
+  <!-- 不在服务范围提示 -->
+  <view class="no-service-tip" wx:if="{{!hasNearbyMerchant && location && !loading}}">
+    <icon type="info" size="20" color="#999"></icon>
+    <text>您当前位置不在任何商户的服务范围内</text>
   </view>
 
   <!-- 加载状态 -->

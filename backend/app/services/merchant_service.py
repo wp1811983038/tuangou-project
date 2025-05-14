@@ -450,7 +450,18 @@ async def search_merchants(
             "product_count": product_count,
             "categories": categories,
             "distance": merchant_distance,
-            "created_at": merchant.created_at
+            "created_at": merchant.created_at,
+            # 添加以下字段
+            "contact_name": merchant.contact_name,
+            "contact_phone": merchant.contact_phone,
+            "service_radius": merchant.service_radius,
+            "north_boundary": merchant.north_boundary,
+            "south_boundary": merchant.south_boundary,
+            "east_boundary": merchant.east_boundary,
+            "west_boundary": merchant.west_boundary,
+            "commission_rate": merchant.commission_rate,
+            "license_number": merchant.license_number,
+            "license_image": merchant.license_image
         }
         
         # 如果指定了距离筛选，只返回在范围内的商户

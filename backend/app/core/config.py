@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     WORKERS: int = 1  # 在开发环境设为1，生产环境可设置更高
     
     # 数据库配置
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_HOST: str = os.getenv("DB_HOST", "10.255.61.25")
     DB_PORT: str = os.getenv("DB_PORT", "3306")
     DB_USER: str = os.getenv("DB_USER", "root")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
@@ -41,13 +41,13 @@ class Settings(BaseSettings):
         return conn_str
     
     # Redis配置
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "10.255.61.25")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
     REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD", "")
     
     # 跨域配置
-    CORS_ORIGINS: List[str] = []
+    CORS_ORIGINS: List[str] = ["*"]
     
     @validator("CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:

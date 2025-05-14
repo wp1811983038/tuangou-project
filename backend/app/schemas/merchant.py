@@ -107,6 +107,9 @@ class MerchantInDB(MerchantBase):
         from_attributes = True
 
 
+# app/schemas/merchant.py
+# 修改 Merchant 类以包含更多字段
+
 class Merchant(MerchantBase):
     """商户响应模型"""
     id: int
@@ -116,6 +119,17 @@ class Merchant(MerchantBase):
     product_count: Optional[int] = None
     distance: Optional[float] = None
     created_at: datetime
+    # 添加以下字段
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    service_radius: Optional[float] = None
+    north_boundary: Optional[float] = None
+    south_boundary: Optional[float] = None
+    east_boundary: Optional[float] = None
+    west_boundary: Optional[float] = None
+    commission_rate: Optional[float] = None
+    license_number: Optional[str] = None
+    license_image: Optional[str] = None
 
     class Config:
         from_attributes = True
