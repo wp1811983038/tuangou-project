@@ -24,6 +24,7 @@ class Merchant(Base):
     address = Column(String(255), comment="详细地址")
     latitude = Column(Float, nullable=True, comment="纬度")
     longitude = Column(Float, nullable=True, comment="经度")
+    service_radius = Column(Float, default=5.0, nullable=True, comment="服务半径(公里)")
     business_hours = Column(String(128), nullable=True, comment="营业时间")
     status = Column(Integer, default=0, comment="状态: 0-待审核, 1-正常, 2-已禁用")
     rating = Column(Float, default=5.0, comment="评分")
@@ -31,6 +32,7 @@ class Merchant(Base):
     balance = Column(Float, default=0.0, comment="账户余额")
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    
     
     # 关系
     products = relationship("Product", back_populates="merchant", cascade="all, delete-orphan")

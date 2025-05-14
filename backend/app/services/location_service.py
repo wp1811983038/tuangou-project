@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from fastapi import HTTPException
 import requests
@@ -7,6 +7,8 @@ from app.core.config import settings
 from app.core.utils import calculate_distance
 from app.models.merchant import Merchant
 from app.models.user import Address
+from app.core.redis import RedisClient
+from app.core.constants import CACHE_EXPIRE_TIME, CACHE_KEY_PREFIX
 
 
 async def search_location(
@@ -227,3 +229,261 @@ async def check_in_service_area(
     
     # 检查是否在服务半径内
     return distance <= merchant.service_radius
+
+
+async def geocode_address(
+    address: str,
+    province: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    use_cache: bool = True
+) -> Dict:
+    """
+    将地址转换为经纬度坐标
+    使用腾讯地图API
+    """
+    try:
+        # 构建完整地址
+        full_address = ""
+        if province:
+            full_address += province
+        if city:
+            full_address += city
+        if district:
+            full_address += district
+        full_address += address
+        
+        # 检查地址是否为空
+        if not full_address.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="地址不能为空"
+            )
+        
+        # 检查缓存
+        if use_cache:
+            try:
+                cache_key = f"geocode:{full_address}"
+                print(f"调试 - 缓存键: {cache_key}")
+                cached_result = RedisClient.get(cache_key)
+                if cached_result:
+                    print("调试 - 使用缓存结果")
+                    return cached_result
+            except Exception as cache_err:
+                print(f"调试 - 缓存错误: {str(cache_err)}")
+            
+        url = "https://apis.map.qq.com/ws/geocoder/v1/"
+        params = {
+            "key": settings.MAP_KEY,
+            "address": full_address
+        }
+        
+        print(f"调试 - 准备请求 URL: {url}")
+        print(f"调试 - 带参数的 URL: {url}?address={full_address}&key=***")
+        
+        # 添加超时设置
+        try:
+            print("调试 - 发送请求...")
+            response = requests.get(url, params=params, timeout=5)
+            print(f"调试 - 响应状态码: {response.status_code}")
+            
+            if response.status_code != 200:
+                print(f"调试 - 错误响应: {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"地图服务响应错误: {response.status_code}"
+                )
+                
+            data = response.json()
+            print(f"调试 - API状态码: {data.get('status')}")
+            print(f"调试 - API消息: {data.get('message', '无消息')}")
+            
+        except requests.Timeout:
+            print("调试 - 请求超时")
+            raise HTTPException(
+                status_code=504,
+                detail="地图服务请求超时"
+            )
+        except requests.RequestException as req_err:
+            print(f"调试 - 请求异常: {str(req_err)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"地图服务请求异常: {str(req_err)}"
+            )
+            
+        if data["status"] == 0:
+            # 处理找不到结果的情况
+            if not data.get("result"):
+                print("调试 - API返回成功但没有结果")
+                raise HTTPException(
+                    status_code=404,
+                    detail="找不到该地址对应的地理位置"
+                )
+                
+            result = data["result"]
+            print("调试 - 成功获取结果")
+            
+            try:
+                address_components = result["address_components"]
+                
+                result_dict = {
+                    "latitude": result["location"]["lat"],
+                    "longitude": result["location"]["lng"],
+                    "address": full_address,
+                    "formatted_address": result.get("title", full_address),
+                    "province": address_components["province"],
+                    "city": address_components["city"],
+                    "district": address_components["district"],
+                    "adcode": result.get("ad_info", {}).get("adcode", ""),
+                    "confidence": result.get("similarity", None)
+                }
+                
+                print(f"调试 - 最终结果: 经度={result_dict['longitude']}, 纬度={result_dict['latitude']}")
+                
+                # 缓存结果
+                if use_cache:
+                    try:
+                        cache_expiry = 86400  # 默认1天
+                        print(f"调试 - 缓存结果, 有效期: {cache_expiry}秒")
+                        RedisClient.set(
+                            cache_key, 
+                            result_dict, 
+                            cache_expiry
+                        )
+                    except Exception as cache_err:
+                        print(f"调试 - 缓存存储错误: {str(cache_err)}")
+                    
+                return result_dict
+            except KeyError as key_err:
+                print(f"调试 - 解析结果时出现键错误: {str(key_err)}")
+                print(f"调试 - 结果结构: {result}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"解析地图API结果失败: {str(key_err)}"
+                )
+        else:
+            print(f"调试 - API返回错误: 状态码{data['status']}, 消息: {data.get('message', '无消息')}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"地图API错误: {data.get('message', '未知错误')}"
+            )
+            
+    except HTTPException:
+        # 继续抛出HTTP异常
+        raise
+    except Exception as e:
+        print(f"调试 - 未捕获异常: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"地理编码失败: {str(e)}"
+        )
+
+async def batch_geocode_addresses(
+    addresses: List[Dict],
+    use_cache: bool = True
+) -> List[Dict]:
+    """
+    批量地址转经纬度
+    
+    Args:
+        addresses: 地址列表，每个地址为字典格式包含address字段
+        use_cache: 是否使用缓存
+        
+    Returns:
+        经纬度和地址详情列表
+    """
+    results = []
+    for addr in addresses:
+        try:
+            result = await geocode_address(
+                address=addr.get("address", ""),
+                province=addr.get("province"),
+                city=addr.get("city"),
+                district=addr.get("district"),
+                use_cache=use_cache
+            )
+            # 添加成功状态
+            result["status"] = "success"
+            results.append(result)
+        except HTTPException as e:
+            # 将错误信息添加到结果中
+            results.append({
+                "address": addr.get("address", ""),
+                "province": addr.get("province", ""),
+                "city": addr.get("city", ""),
+                "district": addr.get("district", ""),
+                "error": e.detail,
+                "status": "failed"
+            })
+    
+    return results
+
+
+async def suggest_address(
+    keyword: str,
+    region: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None
+) -> List[Dict]:
+    """
+    地址输入提示
+    使用腾讯地图API的关键词输入提示功能
+    
+    Args:
+        keyword: 关键词
+        region: 地区，如城市名称
+        latitude: 当前位置纬度，用于优先返回附近的地点
+        longitude: 当前位置经度
+        
+    Returns:
+        地址提示列表
+    """
+    try:
+        if not keyword:
+            return []
+            
+        url = "https://apis.map.qq.com/ws/place/v1/suggestion"
+        params = {
+            "key": settings.MAP_KEY,
+            "keyword": keyword,
+            "output": "json"
+        }
+        
+        # 添加地区限制
+        if region:
+            params["region"] = region
+            
+        # 添加位置信息
+        if latitude is not None and longitude is not None:
+            params["location"] = f"{latitude},{longitude}"
+            
+        response = requests.get(url, params=params, timeout=3)
+        data = response.json()
+        
+        if data["status"] == 0:
+            results = []
+            for item in data["data"]:
+                results.append({
+                    "id": item.get("id", ""),
+                    "title": item["title"],
+                    "address": item.get("address", ""),
+                    "province": item.get("province", ""),
+                    "city": item.get("city", ""),
+                    "district": item.get("district", ""),
+                    "latitude": item.get("location", {}).get("lat"),
+                    "longitude": item.get("location", {}).get("lng"),
+                    "category": item.get("category", "")
+                })
+                
+            return results
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"地址提示API错误: {data.get('message', '未知错误')}"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取地址提示失败: {str(e)}"
+        )

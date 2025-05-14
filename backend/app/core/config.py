@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     
     # 地图API配置
     MAP_API_KEY: str = os.getenv("MAP_API_KEY", "")
+    MAP_KEY: str = MAP_API_KEY 
     
     # 文件上传配置
     UPLOAD_DIR: str = "static/uploads"

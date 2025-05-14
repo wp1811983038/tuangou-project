@@ -5,11 +5,13 @@ import {
   Card, Divider, message, Tooltip
 } from 'antd';
 import {
-  LoadingOutlined, PlusOutlined, InfoCircleOutlined
+  LoadingOutlined, PlusOutlined, InfoCircleOutlined, 
+  EnvironmentOutlined // 新增图标
 } from '@ant-design/icons';
 import request from '../../../utils/request'; // 添加这一行导入request
 
 import { fetchMerchantCategories } from '../../../api/merchant';
+
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -22,6 +24,8 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
   const [licenseUrl, setLicenseUrl] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  // 新增状态
+  const [geocodingLoading, setGeocodingLoading] = useState(false);
 
   // 传递表单引用给父组件
   useEffect(() => {
@@ -145,10 +149,6 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
   };
 
   // 自定义上传函数
-  // 自定义上传函数
-  // 自定义上传函数
-  // 自定义上传函数
-  // 自定义上传函数
   const customUpload = async ({ file, onSuccess, onError, filename }) => {
     setUploadLoading(true);
 
@@ -214,6 +214,55 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
     // 触发父组件的提交处理
     if (onFinish) {
       onFinish(values);
+    }
+  };
+
+  // 新增获取经纬度的函数
+  const handleGetCoordinates = async () => {
+    // 获取表单中的地址信息
+    const province = form.getFieldValue('province');
+    const city = form.getFieldValue('city');
+    const district = form.getFieldValue('district');
+    const address = form.getFieldValue('address');
+
+    // 验证地址信息是否完整
+    if (!province || !city || !district || !address) {
+      message.error('请先填写完整的地址信息（省市区和详细地址）');
+      return;
+    }
+
+    try {
+      setGeocodingLoading(true);
+      
+      // 调用后端地址转经纬度API
+      const response = await request({
+        url: '/locations/geocode',
+        method: 'post',
+        data: {
+          province,
+          city,
+          district,
+          address,
+        }
+      });
+
+      // 检查返回数据
+      if (response && response.latitude && response.longitude) {
+        // 设置经纬度到表单
+        form.setFieldsValue({
+          latitude: response.latitude,
+          longitude: response.longitude,
+        });
+
+        message.success(`获取经纬度成功：(${response.latitude.toFixed(6)}, ${response.longitude.toFixed(6)})`);
+      } else {
+        message.error('获取经纬度失败，请稍后再试');
+      }
+    } catch (error) {
+      console.error('获取经纬度出错:', error);
+      message.error(error.friendlyMessage || '获取经纬度失败');
+    } finally {
+      setGeocodingLoading(false);
     }
   };
 
@@ -345,6 +394,19 @@ const MerchantForm = ({ initialValues, onFinish, loading, formRef }) => {
               rules={[{ required: true, message: '请输入详细地址' }]}
             >
               <Input placeholder="请输入详细地址" />
+            </Form.Item>
+
+            {/* 添加获取经纬度按钮 */}
+            <Form.Item>
+              <Button
+                type="primary"
+                icon={<EnvironmentOutlined />}
+                onClick={handleGetCoordinates}
+                loading={geocodingLoading}
+                style={{ marginBottom: 16 }}
+              >
+                获取经纬度坐标
+              </Button>
             </Form.Item>
 
             <Row gutter={16}>

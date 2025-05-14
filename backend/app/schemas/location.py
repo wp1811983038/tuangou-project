@@ -97,3 +97,26 @@ class DistanceCalculationResponse(BaseModel):
     """距离计算响应模型"""
     distance: float  # km
     duration: Optional[int] = None  # 秒
+
+
+class GeocodeRequest(BaseModel):
+    """地址转经纬度请求模型"""
+    address: str = Field(..., description="完整地址")
+    # 可选参数，可以指定省市区
+    province: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+
+class GeocodeResponse(BaseModel):
+    """地址转经纬度响应模型"""
+    latitude: float
+    longitude: float
+    address: str
+    formatted_address: str
+    province: str
+    city: str
+    district: str
+    adcode: str
+    confidence: Optional[int] = None  # 匹配程度，腾讯地图API返回
+
+

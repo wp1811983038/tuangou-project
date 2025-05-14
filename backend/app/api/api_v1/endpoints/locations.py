@@ -94,3 +94,55 @@ async def check_in_service_area(
     )
     
     return {"data": result}
+
+@router.post("/geocode", response_model=schemas.location.GeocodeResponse)
+async def geocode_address(
+    geocode_req: schemas.location.GeocodeRequest = Body(...),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    地址转经纬度
+    将地址转换为经纬度坐标
+    """
+    return await location_service.geocode_address(
+        address=geocode_req.address,
+        province=geocode_req.province,
+        city=geocode_req.city,
+        district=geocode_req.district
+    )
+
+
+@router.post("/batch-geocode", response_model=List[Dict])
+async def batch_geocode_addresses(
+    addresses: List[schemas.location.GeocodeRequest] = Body(...),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    批量地址转经纬度
+    一次转换多个地址的经纬度坐标
+    """
+    return await location_service.batch_geocode_addresses(
+        [addr.dict() for addr in addresses]
+    )
+
+
+@router.get("/suggest", response_model=List[Dict])
+async def suggest_address(
+    keyword: str = Query(..., min_length=1),
+    region: Optional[str] = Query(None),
+    latitude: Optional[float] = Query(None, ge=-90, le=90),
+    longitude: Optional[float] = Query(None, ge=-180, le=180),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    地址输入提示
+    根据输入关键词提供地址建议
+    """
+    return await location_service.suggest_address(
+        keyword=keyword,
+        region=region,
+        latitude=latitude,
+        longitude=longitude
+    )
+
+

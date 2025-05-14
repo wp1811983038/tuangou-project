@@ -13,14 +13,16 @@ from app.services import admin_service, notification_service
 router = APIRouter()
 
 
+# backend/app/api/api_v1/endpoints/admin.py
 @router.post("/login", response_model=Dict)
 async def admin_login(
     login_data: schemas.admin.AdminLoginRequest,
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    管理员登录
-    """
+    """管理员登录"""
+    # 添加日志
+    print(f"接收到管理员登录请求: {login_data.username}")
+    
     admin = await admin_service.authenticate_admin(
         db=db,
         username=login_data.username,
@@ -34,19 +36,28 @@ async def admin_login(
         )
     
     # 生成访问令牌
-    from app.core.security import create_access_token
-    from datetime import timedelta
-    from app.core.config import settings
-    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         subject=str(admin.id),
         expires_delta=access_token_expires
     )
     
-    # 返回字典而不是直接返回对象
+    # 正确处理管理员对象
+    admin_data = {
+        "id": admin.id,
+        "username": admin.username,
+        "name": admin.name,
+        "email": admin.email,
+        "phone": admin.phone,
+        "avatar": admin.avatar,
+        "role": admin.role,
+        "permissions": admin.permissions,
+        "is_active": admin.is_active,
+        "last_login_at": admin.last_login_at.isoformat() if admin.last_login_at else None
+    }
+    
     return {
-        "admin": admin.dict(),  # 使用dict()方法转换为字典
+        "admin": admin_data,
         "token": {
             "access_token": access_token,
             "token_type": "bearer",

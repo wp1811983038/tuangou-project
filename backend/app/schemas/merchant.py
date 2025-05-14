@@ -50,6 +50,8 @@ class MerchantBase(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     business_hours: Optional[str] = None
+    # 添加服务半径字段
+    service_radius: Optional[float] = Field(5.0, ge=0.1, le=50.0, description="服务半径(公里)")
 
 
 class MerchantCreate(MerchantBase):
@@ -74,6 +76,7 @@ class MerchantUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     business_hours: Optional[str] = None
+    service_radius: Optional[float] = None  # 服务半径字段
     license_number: Optional[str] = None
     license_image: Optional[str] = None
     category_ids: Optional[List[int]] = None
