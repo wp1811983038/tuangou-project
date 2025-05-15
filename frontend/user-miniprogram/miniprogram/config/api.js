@@ -8,7 +8,7 @@ const MODE = 'dev'; // 'dev' | 'test' | 'prod'
 // 不同环境的URL配置
 const BASE_URLS = {
   dev: 'http://10.255.61.255:8000',
-  test: 'https://api-test.example.com',
+  test: 'http://47.115.207.238:8000',
   prod: 'https://api.example.com'
 };
 

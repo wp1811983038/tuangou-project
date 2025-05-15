@@ -1,0 +1,263 @@
+/* src/pages/Dashboard/index.less */
+
+.merchant-dashboard {
+  padding: 24px;
+  
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    
+    h4.ant-typography {
+      margin-bottom: 0;
+    }
+  }
+  
+  .dashboard-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 0;
+    
+    .loading-text {
+      margin-top: 16px;
+      color: rgba(0, 0, 0, 0.45);
+    }
+  }
+  
+  .stats-cards {
+    margin-bottom: 24px;
+    
+    .stat-card {
+      height: 100%;
+      
+      .ant-card-body {
+        padding: 20px 24px;
+      }
+      
+      .ant-statistic-title {
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.65);
+      }
+      
+      .ant-statistic-content {
+        font-size: 24px;
+        font-weight: 500;
+      }
+      
+      .stat-footer {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #f0f0f0;
+      }
+    }
+  }
+  
+  .chart-section {
+    margin-bottom: 24px;
+    
+    .chart-card {
+      height: 100%;
+      
+      .ant-card-head {
+        padding: 0 16px;
+        min-height: 48px;
+        
+        .ant-card-head-title {
+          padding: 12px 0;
+          font-size: 14px;
+        }
+      }
+      
+      .ant-card-body {
+        padding: 0 12px 12px;
+      }
+    }
+  }
+  
+  .recent-orders {
+    margin-bottom: 24px;
+    
+    .ant-card-head {
+      padding: 0 16px;
+      min-height: 48px;
+      
+      .ant-card-head-title {
+        padding: 12px 0;
+        font-size: 14px;
+      }
+    }
+    
+    .ant-card-body {
+      padding: 0 24px 24px;
+    }
+  }
+  
+  .activity-section {
+    .hot-products, .active-groups {
+      height: 100%;
+      
+      .ant-card-head {
+        padding: 0 16px;
+        min-height: 48px;
+        
+        .ant-card-head-title {
+          padding: 12px 0;
+          font-size: 14px;
+        }
+      }
+      
+      .ant-card-body {
+        padding: 12px 24px;
+      }
+    }
+    
+    .hot-product-item, .group-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+      
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+    
+    .hot-product-item {
+      .rank-number {
+        width: 20px;
+        height: 20px;
+        line-height: 20px;
+        text-align: center;
+        border-radius: 10px;
+        background-color: #f5f5f5;
+        margin-right: 12px;
+        font-size: 12px;
+        
+        &:nth-child(1) {
+          background-color: #f5222d;
+          color: #fff;
+        }
+        
+        &:nth-child(2) {
+          background-color: #fa8c16;
+          color: #fff;
+        }
+        
+        &:nth-child(3) {
+          background-color: #faad14;
+          color: #fff;
+        }
+      }
+      
+      .product-img {
+        width: 50px;
+        height: 50px;
+        margin-right: 12px;
+        
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 4px;
+        }
+      }
+      
+      .product-info {
+        flex: 1;
+        
+        .product-name {
+          font-size: 14px;
+          margin-bottom: 4px;
+          color: rgba(0, 0, 0, 0.85);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .product-price {
+          font-size: 14px;
+          color: #f5222d;
+          font-weight: 500;
+        }
+      }
+      
+      .product-sales {
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.45);
+      }
+    }
+    
+    .group-item {
+      .group-img {
+        width: 60px;
+        height: 60px;
+        margin-right: 12px;
+        
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 4px;
+        }
+      }
+      
+      .group-info {
+        flex: 1;
+        
+        .group-title {
+          font-size: 14px;
+          margin-bottom: 8px;
+          color: rgba(0, 0, 0, 0.85);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .group-progress {
+          font-size: 13px;
+          
+          .current {
+            color: #1890ff;
+            font-weight: 500;
+          }
+          
+          .separator, .target {
+            margin: 0 4px;
+            color: rgba(0, 0, 0, 0.45);
+          }
+          
+          .status {
+            margin-left: 8px;
+            padding: 2px 6px;
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border-radius: 2px;
+            font-size: 12px;
+          }
+        }
+      }
+      
+      .group-time {
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.45);
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 16px;
+    
+    .dashboard-header {
+      flex-direction: column;
+      align-items: flex-start;
+      
+      .ant-picker {
+        margin-top: 12px;
+        width: 100%;
+      }
+    }
+  }
+}

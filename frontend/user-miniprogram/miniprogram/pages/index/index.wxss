@@ -1,3 +1,307 @@
+/* index.wxss */
+/* 顶部区域 */
+.top-container {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+/* 左上角位置/商户选择器 */
+.location-merchant-selector {
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+  padding-right: 20rpx;
+  max-width: 240rpx;
+}
+
+.selector-text {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  max-width: 200rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-arrow {
+  width: 0;
+  height: 0;
+  border-left: 10rpx solid transparent;
+  border-right: 10rpx solid transparent;
+  border-top: 10rpx solid #666;
+  margin-left: 10rpx;
+}
+
+/* 搜索栏样式 */
+.search-bar {
+  flex: 1;
+  height: 64rpx;
+  background-color: #f5f5f5;
+  border-radius: 32rpx;
+  display: flex;
+  align-items: center;
+  padding: 0 20rpx;
+}
+
+.search-placeholder {
+  font-size: 26rpx;
+  color: #999;
+  margin-left: 10rpx;
+}
+
+/* 商户面板样式 */
+.merchant-panel-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.merchant-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 70%;
+  background-color: #fff;
+  border-radius: 0 0 20rpx 20rpx;
+  z-index: 101;
+  transform: translateY(-100%);
+  transition: transform 0.3s;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.merchant-panel.show {
+  transform: translateY(0);
+}
+
+.merchant-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.merchant-panel-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.merchant-panel-close {
+  font-size: 40rpx;
+  color: #999;
+  line-height: 1;
+}
+
+/* 当前位置选项 */
+.location-option {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+  background-color: #f9f9f9;
+}
+
+.location-icon-wrapper {
+  width: 60rpx;
+  height: 60rpx;
+  background-color: #f0f0f0;
+  border-radius: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+}
+
+.location-dot {
+  width: 20rpx;
+  height: 20rpx;
+  background-color: #FF4D4F;
+  border-radius: 50%;
+  position: relative;
+}
+
+.location-dot:before {
+  content: '';
+  position: absolute;
+  width: 40rpx;
+  height: 40rpx;
+  background-color: rgba(255, 77, 79, 0.2);
+  border-radius: 50%;
+  top: -10rpx;
+  left: -10rpx;
+}
+
+.location-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.location-label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.location-name {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: bold;
+  margin-top: 4rpx;
+}
+
+/* 商户列表滚动区域 */
+.merchant-list-scroll {
+  flex: 1;
+  height: 0;
+}
+
+.merchant-section {
+  padding-bottom: 30rpx;
+}
+
+.merchant-section-title {
+  padding: 20rpx 30rpx 10rpx;
+  font-size: 26rpx;
+  color: #999;
+  background-color: #f9f9f9;
+}
+
+.merchant-list {
+  background-color: #fff;
+}
+
+.merchant-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.merchant-logo {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 8rpx;
+  margin-right: 20rpx;
+}
+
+.merchant-info {
+  flex: 1;
+}
+
+.merchant-name {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: bold;
+  margin-bottom: 6rpx;
+}
+
+.merchant-address {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.out-of-range-tag {
+  display: inline-block;
+  font-size: 22rpx;
+  color: #FF4D4F;
+  background-color: rgba(255, 77, 79, 0.1);
+  padding: 4rpx 12rpx;
+  border-radius: 4rpx;
+  margin-top: 6rpx;
+}
+
+.merchant-selected {
+  color: #FF4D4F;
+  font-size: 36rpx;
+}
+
+.no-merchant-tip {
+  padding: 60rpx 0;
+  text-align: center;
+  color: #999;
+  font-size: 28rpx;
+}
+
+/* 当前商户详情样式 */
+.current-merchant-detail {
+  margin: 20rpx;
+  background-color: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.merchant-banner {
+  width: 100%;
+  height: 240rpx;
+}
+
+.merchant-detail-info {
+  padding: 20rpx;
+}
+
+.merchant-detail-name {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.merchant-detail-desc {
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.merchant-categories {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.merchant-category {
+  font-size: 22rpx;
+  color: #FF4D4F;
+  background-color: rgba(255, 77, 79, 0.1);
+  padding: 4rpx 12rpx;
+  border-radius: 4rpx;
+  margin-right: 10rpx;
+  margin-bottom: 10rpx;
+}
+
+.merchant-actions {
+  display: flex;
+  padding: 20rpx;
+  border-top: 1rpx solid #f5f5f5;
+}
+
+.merchant-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  background-color: #FF4D4F;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 32rpx;
+  flex: 1;
+}
+
 /* 附近商户样式 */
 .nearby-merchants {
   margin: 20rpx;
@@ -11,47 +315,6 @@
   font-weight: bold;
   color: #333;
   margin-bottom: 15rpx;
-}
-
-.merchant-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.merchant-item {
-  display: flex;
-  padding: 15rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
-}
-
-.merchant-item:last-child {
-  border-bottom: none;
-}
-
-.merchant-logo {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 8rpx;
-  margin-right: 15rpx;
-}
-
-.merchant-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.merchant-name {
-  font-size: 28rpx;
-  color: #333;
-  font-weight: bold;
-}
-
-.merchant-address {
-  font-size: 24rpx;
-  color: #999;
-  margin-top: 8rpx;
 }
 
 /* 无服务商户提示 */
@@ -69,4 +332,32 @@
   font-size: 26rpx;
   color: #666;
   margin-left: 10rpx;
+}
+
+/* 加载中样式 */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40rpx 0;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+}
+
+.loading-spinner {
+  width: 40rpx;
+  height: 40rpx;
+  border: 2rpx solid #f3f3f3;
+  border-top: 2rpx solid #FF4D4F;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

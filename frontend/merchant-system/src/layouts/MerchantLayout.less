@@ -1,0 +1,201 @@
+/* src/layouts/MerchantLayout.less */
+
+.merchant-layout {
+    min-height: 100vh;
+
+    .layout-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+
+        .loading-text {
+            margin-top: 16px;
+            color: rgba(0, 0, 0, 0.45);
+        }
+    }
+
+    .merchant-sider {
+        position: fixed;
+        left: 0;
+        height: 100vh;
+        overflow: auto;
+        z-index: 10;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+
+        .logo {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+            span {
+                opacity: 0.9;
+            }
+
+            .anticon {
+                font-size: 22px;
+            }
+        }
+
+        .ant-menu-item,
+        .ant-menu-submenu-title {
+            margin: 0;
+            height: 50px;
+            line-height: 50px;
+        }
+
+        .ant-menu-inline-collapsed {
+            width: 80px;
+
+            .ant-menu-item,
+            .ant-menu-submenu-title {
+                padding: 0 24px !important;
+            }
+        }
+    }
+
+    .site-layout {
+        min-height: 100vh;
+        transition: all 0.2s;
+        margin-left: 220px;
+
+        &.collapsed {
+            margin-left: 80px;
+        }
+    }
+
+    .site-header {
+        background: white;
+        padding: 0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 9;
+
+        .header-left {
+            flex: 1;
+
+            .trigger {
+                padding: 0 24px;
+                font-size: 18px;
+                height: 64px;
+                line-height: 64px;
+                cursor: pointer;
+                transition: color 0.3s;
+
+                &:hover {
+                    color: #1890ff;
+                }
+            }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+
+            .header-icon {
+                font-size: 16px;
+                padding: 0 12px;
+                height: 64px;
+                line-height: 64px;
+            }
+
+            .user-info {
+                display: flex;
+                align-items: center;
+                padding: 0 24px;
+                height: 64px;
+                line-height: 64px;
+                cursor: pointer;
+
+                &:hover {
+                    background-color: rgba(0, 0, 0, 0.02);
+                }
+
+                .username {
+                    margin-left: 8px;
+                    color: rgba(0, 0, 0, 0.85);
+                }
+            }
+        }
+    }
+
+    .site-content {
+        position: relative;
+        background-color: #f0f2f5;
+    }
+
+    .notification-item {
+        padding: 8px 0;
+        width: 280px;
+
+        .notification-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .notification-time {
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.45);
+            margin-bottom: 8px;
+        }
+
+        .notification-content {
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.65);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .site-layout {
+            margin-left: 0 !important;
+        }
+
+        .site-header {
+            .header-left {
+                .trigger {
+                    padding: 0 16px;
+                }
+            }
+
+            .header-right {
+                .user-info {
+                    padding: 0 16px;
+                }
+            }
+        }
+    }
+}
+
+/* 覆盖抽屉样式 */
+.ant-drawer {
+    .ant-drawer-body {
+        padding: 0;
+    }
+
+    .logo {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .ant-menu-dark {
+        background-color: #001529;
+    }
+}

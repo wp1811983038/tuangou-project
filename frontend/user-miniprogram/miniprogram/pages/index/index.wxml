@@ -14,28 +14,118 @@
     </view>
   </view>
 
-  <!-- 搜索栏 -->
-  <view class="search-container">
-    <view class="location">
-      <text class="location-icon"></text>
-      <text class="location-name">{{location.name || '定位中...'}}</text>
+  <!-- 顶部搜索栏和位置/商户选择区域 -->
+  <view class="top-container">
+    <!-- 左上角位置/商户选择器 -->
+    <view class="location-merchant-selector" bindtap="toggleMerchantPanel">
+      <text class="selector-text">{{currentMerchant.id ? currentMerchant.name : (location.name || '定位中...')}}</text>
+      <view class="selector-arrow"></view>
     </view>
-    <view class="search-bar">
+    
+    <!-- 搜索区域 -->
+    <view class="search-bar" bindtap="goToSearch">
       <icon type="search" size="14" color="#999"></icon>
-      <text class="search-placeholder">搜索商家、商品</text>
+      <text class="search-placeholder">搜索商品</text>
+    </view>
+  </view>
+  
+  <!-- 商户列表面板 -->
+  <view class="merchant-panel-mask" wx:if="{{showMerchantPanel}}" bindtap="closeMerchantPanel"></view>
+  <view class="merchant-panel {{showMerchantPanel ? 'show' : ''}}">
+    <view class="merchant-panel-header">
+      <text class="merchant-panel-title">选择商户</text>
+      <view class="merchant-panel-close" bindtap="closeMerchantPanel">×</view>
+    </view>
+    
+    <!-- 回到当前位置选项 -->
+    <view class="location-option" bindtap="selectCurrentLocation" wx:if="{{currentMerchant.id}}">
+      <view class="location-icon-wrapper">
+        <view class="location-dot"></view>
+      </view>
+      <view class="location-info">
+        <text class="location-label">当前位置</text>
+        <text class="location-name">{{location.name || '未知位置'}}</text>
+      </view>
+    </view>
+    
+    <!-- 商户列表 -->
+    <scroll-view scroll-y="true" class="merchant-list-scroll">
+      <view class="merchant-section">
+        <view class="merchant-section-title" wx:if="{{inBoundaryMerchants.length > 0}}">
+          <text>附近商户</text>
+        </view>
+        <view class="merchant-list">
+          <view class="merchant-item" 
+                wx:for="{{inBoundaryMerchants}}" 
+                wx:key="id"
+                data-id="{{item.id}}" 
+                bindtap="selectMerchant">
+            <image class="merchant-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+            <view class="merchant-info">
+              <text class="merchant-name">{{item.name}}</text>
+              <text class="merchant-address">{{item.address}}</text>
+            </view>
+            <view class="merchant-selected" wx:if="{{currentMerchant.id === item.id}}">✓</view>
+          </view>
+        </view>
+        
+        <!-- 附近没有商户时显示全部商户 -->
+        <block wx:if="{{inBoundaryMerchants.length === 0}}">
+          <view class="merchant-section-title" wx:if="{{allMerchants.length > 0}}">
+            <text>全部商户</text>
+          </view>
+          <view class="merchant-list">
+            <view class="merchant-item" 
+                  wx:for="{{allMerchants}}" 
+                  wx:key="id"
+                  data-id="{{item.id}}" 
+                  bindtap="selectMerchant">
+              <image class="merchant-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+              <view class="merchant-info">
+                <text class="merchant-name">{{item.name}}</text>
+                <text class="merchant-address">{{item.address}}</text>
+                <text class="out-of-range-tag" wx:if="{{!item.inRange}}">不在配送范围</text>
+              </view>
+              <view class="merchant-selected" wx:if="{{currentMerchant.id === item.id}}">✓</view>
+            </view>
+          </view>
+        </block>
+        
+        <!-- 没有任何商户时显示 -->
+        <view class="no-merchant-tip" wx:if="{{allMerchants.length === 0}}">
+          暂无商户数据
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 当前商户详情 -->
+  <view class="current-merchant-detail" wx:if="{{currentMerchant.id}}">
+    <image class="merchant-banner" src="{{currentMerchant.cover || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+    <view class="merchant-detail-info">
+      <text class="merchant-detail-name">{{currentMerchant.name}}</text>
+      <text class="merchant-detail-desc">{{currentMerchant.description || '暂无商户描述'}}</text>
+      <view class="merchant-categories">
+        <text class="merchant-category" wx:for="{{currentMerchant.categories}}" wx:key="id">{{item.name}}</text>
+      </view>
+    </view>
+    <view class="merchant-actions">
+      <view class="merchant-action-btn" bindtap="goToMerchantDetail">
+        <text>查看商户</text>
+      </view>
     </view>
   </view>
 
-  <!-- 边界范围内商户显示 -->
-  <view class="nearby-merchants" wx:if="{{hasNearbyMerchant}}">
+  <!-- 附近商户显示 -->
+  <view class="nearby-merchants" wx:if="{{hasNearbyMerchant && !currentMerchant.id}}">
     <view class="nearby-title">附近可为您提供服务的商户</view>
     <view class="merchant-list">
       <view class="merchant-item" 
             wx:for="{{inBoundaryMerchants}}" 
             wx:key="id"
             data-id="{{item.id}}" 
-            bindtap="onMerchantTap">
-        <image src="{{item.logo}}" class="merchant-logo"></image>
+            bindtap="selectMerchant">
+        <image src="{{item.logo || '/assets/images/logo.png'}}" class="merchant-logo"></image>
         <view class="merchant-info">
           <text class="merchant-name">{{item.name}}</text>
           <text class="merchant-address">{{item.address}}</text>
@@ -45,7 +135,7 @@
   </view>
 
   <!-- 不在服务范围提示 -->
-  <view class="no-service-tip" wx:if="{{!hasNearbyMerchant && location && !loading}}">
+  <view class="no-service-tip" wx:if="{{!hasNearbyMerchant && location && !loading && !currentMerchant.id}}">
     <icon type="info" size="20" color="#999"></icon>
     <text>您当前位置不在任何商户的服务范围内</text>
   </view>
