@@ -30,9 +30,9 @@ class ProductSpecificationUpdate(ProductSpecificationBase):
 class ProductSpecification(ProductSpecificationBase):
     """商品规格响应模型"""
     id: int
-    product_id: int
-    created_at: datetime
-    updated_at: datetime
+    product_id: Optional[int] = None  # 修改为可选
+    created_at: Optional[datetime] = None  # 修改为可选
+    updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
@@ -57,8 +57,8 @@ class ProductImageUpdate(ProductImageBase):
 class ProductImage(ProductImageBase):
     """商品图片响应模型"""
     id: int
-    product_id: int
-    created_at: datetime
+    product_id: Optional[int] = None  # 修改为可选
+    created_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True

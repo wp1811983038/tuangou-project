@@ -82,6 +82,32 @@ async def get_product(db: Session, product_id: int, user_id: Optional[int] = Non
         has_group = False
         
         # 构建响应数据
+        images_data = []
+        for image in images:
+            images_data.append({
+                "id": image.id,
+                "image_url": image.image_url,
+                "sort_order": image.sort_order,
+                # 添加缺失的必填字段
+                "product_id": product_id,
+                "created_at": image.created_at or datetime.now()
+            })
+        
+        specs_data = []
+        for spec in specifications:
+            specs_data.append({
+                "id": spec.id,
+                "name": spec.name,
+                "value": spec.value,
+                "price_adjustment": spec.price_adjustment,
+                "stock": spec.stock,
+                "sort_order": spec.sort_order,
+                # 添加缺失的必填字段
+                "product_id": product_id,
+                "created_at": spec.created_at or datetime.now(),
+                "updated_at": spec.updated_at or datetime.now()
+            })
+        
         return {
             "id": product.id,
             "merchant_id": product.merchant_id,
@@ -106,23 +132,8 @@ async def get_product(db: Session, product_id: int, user_id: Optional[int] = Non
             "favorite_count": favorite_count,
             "is_favorite": is_favorite,
             "categories": categories_data,
-            "images": [
-                {
-                    "id": image.id,
-                    "image_url": image.image_url,
-                    "sort_order": image.sort_order
-                } for image in images
-            ],
-            "specifications": [
-                {
-                    "id": spec.id,
-                    "name": spec.name,
-                    "value": spec.value,
-                    "price_adjustment": spec.price_adjustment,
-                    "stock": spec.stock,
-                    "sort_order": spec.sort_order
-                } for spec in specifications
-            ],
+            "images": images_data,
+            "specifications": specs_data,
             "created_at": product.created_at,
             "updated_at": product.updated_at
         }
@@ -545,7 +556,10 @@ async def get_related_products(
             "sales": related.sales,
             "is_hot": related.is_hot,
             "is_new": related.is_new,
-            "is_recommend": related.is_recommend
+            "is_recommend": related.is_recommend,
+            # 添加缺失的时间戳字段
+            "created_at": related.created_at,
+            "updated_at": related.updated_at
         })
     
     return result
