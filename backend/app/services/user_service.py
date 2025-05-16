@@ -153,12 +153,12 @@ async def create_merchant_with_password(db: Session, merchant_data: MerchantRegi
     # 创建商户记录
     from app.models.merchant import Merchant
     merchant = Merchant(
-        name=merchant_data.merchant_name,
-        contact_name=merchant_data.contact_name,
-        contact_phone=merchant_data.contact_phone,
-        business_license=merchant_data.business_license,
-        status="pending",  # 默认为待审核状态
-    )
+    name=merchant_data.merchant_name,
+    contact_name=merchant_data.contact_name,
+    contact_phone=merchant_data.contact_phone,
+    license_image=merchant_data.license_image,   # 正确的字段映射
+    status=0,
+)
     db.add(merchant)
     db.flush()  # 获取商户ID
     

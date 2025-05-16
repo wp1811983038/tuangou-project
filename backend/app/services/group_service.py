@@ -76,6 +76,51 @@ async def get_group(db: Session, group_id: int, user_id: Optional[int] = None) -
         if participant:
             is_joined = True
     
+    # 构建包含所有必要字段的商户信息
+    merchant_data = None
+    if merchant:
+        merchant_data = {
+            "id": merchant.id,
+            "name": merchant.name,
+            "logo": merchant.logo,
+            # 添加缺失的必要字段
+            "status": merchant.status,
+            "rating": merchant.rating,
+            "created_at": merchant.created_at,
+            # 以下字段也添加，以保持数据完整性
+            "contact_name": merchant.contact_name,
+            "contact_phone": merchant.contact_phone,
+            "province": merchant.province,
+            "city": merchant.city,
+            "district": merchant.district,
+            "address": merchant.address,
+            "categories": []  # 避免缺失字段错误
+        }
+    
+    # 构建包含所有必要字段的商品信息
+    product_data = None
+    if product:
+        product_data = {
+            "id": product.id,
+            "name": product.name,
+            "thumbnail": product.thumbnail,
+            "original_price": product.original_price,
+            "current_price": product.current_price,
+            "description": product.description,
+            # 添加缺失的必要字段
+            "merchant_id": product.merchant_id,
+            "created_at": product.created_at,
+            "updated_at": product.updated_at,
+            # 添加其他可能需要的字段
+            "stock": product.stock,
+            "unit": product.unit,
+            "sales": product.sales,
+            "status": product.status,
+            "is_hot": product.is_hot,
+            "is_new": product.is_new,
+            "is_recommend": product.is_recommend
+        }
+    
     return {
         "id": group.id,
         "merchant_id": group.merchant_id,
@@ -95,25 +140,13 @@ async def get_group(db: Session, group_id: int, user_id: Optional[int] = None) -
         "sort_order": group.sort_order,
         "created_at": group.created_at,
         "updated_at": group.updated_at,
-        "merchant": {
-            "id": merchant.id,
-            "name": merchant.name,
-            "logo": merchant.logo
-        } if merchant else None,
-        "product": {
-            "id": product.id,
-            "name": product.name,
-            "thumbnail": product.thumbnail,
-            "original_price": product.original_price,
-            "current_price": product.current_price,
-            "description": product.description
-        } if product else None,
+        "merchant": merchant_data,
+        "product": product_data,
         "participants": participant_list,
         "remaining_seconds": remaining_seconds,
         "remaining_count": remaining_count,
         "is_joined": is_joined
     }
-
 
 async def search_groups(
     db: Session,
@@ -309,7 +342,7 @@ async def create_group(
     if not cover_image:
         cover_image = product.thumbnail
     
-    # 创建团购
+    # 创建团购 - 修复original_price参数
     group = Group(
         merchant_id=merchant_id,
         product_id=group_data.product_id,
@@ -317,7 +350,7 @@ async def create_group(
         cover_image=cover_image,
         description=group_data.description,
         price=group_data.price,
-        original_price=group_data.original_price or product.original_price,
+        original_price=product.original_price,  # 直接使用商品原价
         min_participants=group_data.min_participants,
         max_participants=group_data.max_participants,
         current_participants=0,
@@ -334,14 +367,12 @@ async def create_group(
     
     return group
 
-
-async def update_group(
-    db: Session, 
-    group_id: int, 
-    group_data: GroupUpdate, 
-    merchant_id: int
-) -> Group:
+async def update_group(db: Session, group_id: int, group_data: GroupUpdate, merchant_id: int) -> Group:
     """更新团购"""
+    # 调试日志
+    print(f"更新团购，ID: {group_id}, 商户ID: {merchant_id}")
+    print(f"更新数据: {group_data.dict(exclude_unset=True)}")
+    
     # 检查团购是否存在且属于该商户
     group = db.query(Group).filter(
         Group.id == group_id,
@@ -355,59 +386,46 @@ async def update_group(
     if group.status in [2, 3]:  # 已成功或已失败
         raise HTTPException(status_code=400, detail="团购已结束，不能修改")
     
-    # 更新团购信息
-    if group_data.title is not None:
-        group.title = group_data.title
-    
-    if group_data.cover_image is not None:
-        group.cover_image = group_data.cover_image
-    
-    if group_data.description is not None:
-        group.description = group_data.description
-    
-    if group_data.price is not None:
-        group.price = group_data.price
-    
-    if group_data.min_participants is not None:
-        # 最小成团人数不能小于当前参与人数
-        if group_data.min_participants < group.current_participants:
-            group.min_participants = group_data.min_participants
-        else:
-            raise HTTPException(status_code=400, detail="最小成团人数不能小于当前参与人数")
-    
-    if group_data.max_participants is not None:
-        # 最大成团人数不能小于当前参与人数
-        if group_data.max_participants < group.current_participants:
-            raise HTTPException(status_code=400, detail="最大成团人数不能小于当前参与人数")
-        group.max_participants = group_data.max_participants
-    
-    if group_data.end_time is not None:
-        # 结束时间不能早于当前时间
-        if group_data.end_time < datetime.now():
+    try:
+        # 更新团购信息
+        update_data = group_data.dict(exclude_unset=True)
+        
+        # 验证最小成团人数
+        if "min_participants" in update_data and update_data["min_participants"] < group.current_participants:
+            raise HTTPException(status_code=400, detail=f"最小成团人数({update_data['min_participants']})不能小于当前参与人数({group.current_participants})")
+        
+        # 验证最大成团人数
+        if "max_participants" in update_data and update_data["max_participants"] is not None:
+            if update_data["max_participants"] < group.current_participants:
+                raise HTTPException(status_code=400, detail=f"最大成团人数({update_data['max_participants']})不能小于当前参与人数({group.current_participants})")
+        
+        # 验证结束时间
+        if "end_time" in update_data and update_data["end_time"] < datetime.now():
             raise HTTPException(status_code=400, detail="结束时间不能早于当前时间")
-        group.end_time = group_data.end_time
-    
-    if group_data.is_featured is not None:
-        group.is_featured = group_data.is_featured
-    
-    if group_data.sort_order is not None:
-        group.sort_order = group_data.sort_order
-    
-    if group_data.status is not None:
-        # 如果要结束团购
-        if group_data.status in [2, 3]:  # 已成功或已失败
-            # 检查是否达到最小成团人数
-            if group.current_participants >= group.min_participants:
-                group.status = 2  # 已成功
+        
+        # 更新数据
+        for field, value in update_data.items():
+            # 特殊处理status字段
+            if field == "status" and value in [2, 3]:
+                # 检查是否达到最小成团人数
+                if group.current_participants >= group.min_participants:
+                    group.status = 2  # 已成功
+                else:
+                    group.status = 3  # 已失败
             else:
-                group.status = 3  # 已失败
-        else:
-            group.status = group_data.status
-    
-    db.commit()
-    db.refresh(group)
-    
-    return group
+                setattr(group, field, value)
+        
+        db.commit()
+        db.refresh(group)
+        
+        return group
+    except HTTPException as e:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        # 记录其他异常
+        print(f"团购更新异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"团购更新失败: {str(e)}")
 
 
 async def join_group(db: Session, group_id: int, user_id: int) -> Dict:

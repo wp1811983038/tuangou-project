@@ -43,24 +43,29 @@ class CRUDProduct:
         db.refresh(db_obj)
         return db_obj
     
-    def update(
-        self, db: Session, *, db_obj: Product, obj_in: ProductUpdate
-    ) -> Product:
-        obj_data = obj_in.dict(exclude_unset=True, exclude={"category_ids"})
+    def update(self, db: Session, *, db_obj: Product, obj_in: Union[ProductUpdate, Dict[str, Any]]) -> Product:
+        """更新商品"""
+        # 处理字典输入
+        if isinstance(obj_in, dict):
+            obj_data = obj_in.copy()
+            category_ids = obj_data.pop("category_ids", None)
+        else:
+            obj_data = obj_in.dict(exclude_unset=True, exclude={"category_ids"})
+            category_ids = obj_in.category_ids if hasattr(obj_in, "category_ids") else None
+        
+        # 更新普通字段
         for field in obj_data:
             setattr(db_obj, field, obj_data[field])
         
-        # 处理分类关联
-        if obj_in.category_ids is not None:
-            # 删除旧关联
-            db.execute(
-                product_categories.delete().where(
-                    product_categories.c.product_id == db_obj.id
-                )
-            )
+        # 如果提供了分类ID，更新分类关联
+        if category_ids is not None:
+            # 删除现有关联
+            db.execute(product_categories.delete().where(
+                product_categories.c.product_id == db_obj.id
+            ))
             
             # 添加新关联
-            for category_id in obj_in.category_ids:
+            for category_id in category_ids:
                 stmt = product_categories.insert().values(
                     product_id=db_obj.id,
                     category_id=category_id

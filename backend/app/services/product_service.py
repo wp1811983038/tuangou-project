@@ -14,115 +14,127 @@ from app.models.user import Favorite
 from app.schemas.product import (
     ProductCreate, ProductUpdate, ProductImageCreate, ProductSpecificationCreate
 )
+from app.models.group import Group
+from app.models.order import OrderItem
 
 
 async def get_product(db: Session, product_id: int, user_id: Optional[int] = None) -> Dict:
     """获取单个商品详情"""
-    product = db.query(Product).filter(Product.id == product_id).first()
-    
-    if not product:
-        raise HTTPException(status_code=404, detail="商品不存在")
-    
-    # 增加浏览量
-    product.views += 1
-    db.commit()
-    
-    # 获取商户信息
-    merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
-    
-    # 获取商品图片
-    images = db.query(ProductImage).filter(
-        ProductImage.product_id == product_id
-    ).order_by(ProductImage.sort_order).all()
-    
-    # 获取商品规格
-    specifications = db.query(ProductSpecification).filter(
-        ProductSpecification.product_id == product_id
-    ).order_by(ProductSpecification.sort_order).all()
-    
-    # 获取商品分类
-    categories = db.query(Category).join(
-        product_categories,
-        product_categories.c.category_id == Category.id
-    ).filter(
-        product_categories.c.product_id == product_id
-    ).all()
-    
-    # 检查是否收藏
-    is_favorite = False
-    if user_id:
-        favorite = db.query(Favorite).filter(
-            Favorite.user_id == user_id,
-            Favorite.product_id == product_id
-        ).first()
-        if favorite:
-            is_favorite = True
-    
-    # 检查是否有团购
-    has_group = False
-    active_group = db.query(Group).filter(
-        Group.product_id == product_id,
-        Group.status == 1,  # 进行中
-        Group.end_time > datetime.now()
-    ).first()
-    if active_group:
-        has_group = True
-    
-    # 收藏数量
-    favorite_count = db.query(func.count(Favorite.id)).filter(
-        Favorite.product_id == product_id
-    ).scalar() or 0
-    
-    return {
-        "id": product.id,
-        "merchant_id": product.merchant_id,
-        "merchant_name": merchant.name if merchant else None,
-        "name": product.name,
-        "thumbnail": product.thumbnail,
-        "original_price": product.original_price,
-        "current_price": product.current_price,
-        "group_price": product.group_price,
-        "stock": product.stock,
-        "unit": product.unit,
-        "description": product.description,
-        "detail": product.detail,
-        "sales": product.sales,
-        "views": product.views,
-        "status": product.status,
-        "sort_order": product.sort_order,
-        "is_hot": product.is_hot,
-        "is_new": product.is_new,
-        "is_recommend": product.is_recommend,
-        "has_group": has_group,
-        "favorite_count": favorite_count,
-        "is_favorite": is_favorite,
-        "categories": [
-            {
+    try:
+        product = db.query(Product).filter(Product.id == product_id).first()
+        
+        if not product:
+            raise HTTPException(status_code=404, detail="商品不存在")
+        
+        # 增加浏览量
+        product.views += 1
+        db.commit()
+        
+        # 获取商户信息
+        merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
+        
+        # 获取商品图片
+        images = db.query(ProductImage).filter(
+            ProductImage.product_id == product_id
+        ).order_by(ProductImage.sort_order).all()
+        
+        # 获取商品规格
+        specifications = db.query(ProductSpecification).filter(
+            ProductSpecification.product_id == product_id
+        ).order_by(ProductSpecification.sort_order).all()
+        
+        # 获取商品分类并确保包含必要字段
+        categories_data = []
+        categories = db.query(Category).join(
+            product_categories,
+            product_categories.c.category_id == Category.id
+        ).filter(
+            product_categories.c.product_id == product_id
+        ).all()
+        
+        for category in categories:
+            categories_data.append({
                 "id": category.id,
                 "name": category.name,
-                "icon": category.icon
-            } for category in categories
-        ],
-        "images": [
-            {
-                "id": image.id,
-                "image_url": image.image_url,
-                "sort_order": image.sort_order
-            } for image in images
-        ],
-        "specifications": [
-            {
-                "id": spec.id,
-                "name": spec.name,
-                "value": spec.value,
-                "price_adjustment": spec.price_adjustment,
-                "stock": spec.stock,
-                "sort_order": spec.sort_order
-            } for spec in specifications
-        ],
-        "created_at": product.created_at,
-        "updated_at": product.updated_at
-    }
+                "icon": category.icon,
+                "created_at": category.created_at or datetime.now(),
+                "updated_at": category.updated_at or datetime.now(),
+                "sort_order": category.sort_order,
+                "is_active": category.is_active
+            })
+        
+        # 检查是否收藏
+        is_favorite = False
+        if user_id:
+            favorite = db.query(Favorite).filter(
+                Favorite.user_id == user_id,
+                Favorite.product_id == product_id
+            ).first()
+            if favorite:
+                is_favorite = True
+        
+        # 收藏数量
+        favorite_count = db.query(func.count(Favorite.id)).filter(
+            Favorite.product_id == product_id
+        ).scalar() or 0
+        
+        # 检查是否有团购
+        has_group = False
+        
+        # 构建响应数据
+        return {
+            "id": product.id,
+            "merchant_id": product.merchant_id,
+            "merchant_name": merchant.name if merchant else None,
+            "name": product.name,
+            "thumbnail": product.thumbnail,
+            "original_price": product.original_price,
+            "current_price": product.current_price,
+            "group_price": product.group_price,
+            "stock": product.stock,
+            "unit": product.unit,
+            "description": product.description,
+            "detail": product.detail,
+            "sales": product.sales,
+            "views": product.views,
+            "status": product.status,
+            "sort_order": product.sort_order,
+            "is_hot": product.is_hot,
+            "is_new": product.is_new,
+            "is_recommend": product.is_recommend,
+            "has_group": has_group,
+            "favorite_count": favorite_count,
+            "is_favorite": is_favorite,
+            "categories": categories_data,
+            "images": [
+                {
+                    "id": image.id,
+                    "image_url": image.image_url,
+                    "sort_order": image.sort_order
+                } for image in images
+            ],
+            "specifications": [
+                {
+                    "id": spec.id,
+                    "name": spec.name,
+                    "value": spec.value,
+                    "price_adjustment": spec.price_adjustment,
+                    "stock": spec.stock,
+                    "sort_order": spec.sort_order
+                } for spec in specifications
+            ],
+            "created_at": product.created_at,
+            "updated_at": product.updated_at
+        }
+    except HTTPException as e:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        # 记录详细错误并返回友好消息
+        import traceback
+        print(f"获取商品详情出错，商品ID:{product_id}，错误:{str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"获取商品详情时出错:{str(e)}")
 
 
 async def search_products(
@@ -309,7 +321,7 @@ async def create_product(db: Session, product_data: ProductCreate, merchant_id: 
     product_dict = product_data.dict(exclude={"category_ids", "images", "specifications"})
     product_dict["merchant_id"] = merchant_id
     
-    product = crud_product.create(db, obj_in=product_dict)
+    product = crud_product.create(db, obj_in=product_dict, merchant_id=merchant_id)
     
     # 关联分类
     for category_id in product_data.category_ids:

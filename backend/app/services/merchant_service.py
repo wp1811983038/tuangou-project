@@ -6,7 +6,8 @@ from sqlalchemy import func, desc, asc, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.crud import crud_merchant, crud_category
-from app.models.merchant import Merchant, MerchantCategory, Category
+from app.models.merchant import Merchant, MerchantCategory
+from app.models.category import Category 
 from app.models.product import Product
 from app.schemas.merchant import MerchantCreate, MerchantUpdate, CategoryCreate, CategoryUpdate
 from app.core.utils import calculate_distance
@@ -153,88 +154,154 @@ async def create_merchant(db: Session, merchant_data: MerchantCreate, user_id: i
 
 import math
 import traceback
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
+from datetime import datetime
+from fastapi import HTTPException, status
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+from pydantic import ValidationError
+
+from app.crud import crud_merchant
+from app.models.merchant import Merchant, MerchantCategory
+from app.schemas.merchant import MerchantUpdate
+from app.services.location_service import calculate_boundary_points
 
 async def update_merchant(
     db: Session, 
     merchant_id: int, 
-    merchant_data: MerchantUpdate, 
-    user_id: int = None,
+    merchant_data: Union[MerchantUpdate, Dict[str, Any]], 
+    user_id: Optional[int] = None,
     is_admin: bool = False
-) -> Dict:  # 注意返回类型改为字典
-    """更新商户信息"""
-    import math
-    from app.services.location_service import calculate_boundary_points
+) -> Dict:
+    """
+    更新商户信息
     
+    Args:
+        db: 数据库会话
+        merchant_id: 商户ID
+        merchant_data: 更新数据，可以是MerchantUpdate对象或字典
+        user_id: 操作用户ID（可选）
+        is_admin: 是否管理员操作
+        
+    Returns:
+        更新后的商户详情
+    
+    Raises:
+        HTTPException: 权限错误、参数验证错误或数据库操作错误
+    """
+    # 调试日志
+    print(f"更新商户数据，商户ID: {merchant_id}")
+    if isinstance(merchant_data, dict):
+        print(f"接收到的更新数据(字典): {merchant_data}")
+    else:
+        print(f"接收到的更新数据(模型): {merchant_data.dict(exclude_unset=True)}")
+    
+    # 获取商户
     merchant = crud_merchant.get(db, id=merchant_id)
     if not merchant:
         raise HTTPException(status_code=404, detail="商户不存在")
     
-    # 添加调试日志
-    print(f"更新商户ID:{merchant_id}，接收到的数据: {merchant_data.dict()}")
-    print(f"接收到的服务半径值: {merchant_data.service_radius}")
-    
     # 添加管理员检查：如果是管理员调用，则跳过权限检查
     if not is_admin:  # 非管理员才检查权限
         # 检查用户是否有权限更新此商户（只有商户自己可以更新）
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or user.merchant_id != merchant_id:
-            raise HTTPException(status_code=403, detail="没有权限更新其他商户的信息")
+        if user_id:
+            from app.models.user import User
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user or user.merchant_id != merchant_id:
+                raise HTTPException(status_code=403, detail="没有权限更新其他商户的信息")
     
     # 记录更新前的服务半径值，用于验证
     original_radius = merchant.service_radius
     print(f"更新前的服务半径值: {original_radius}")
     
     # 处理更新数据
-    if isinstance(merchant_data, dict):
-        update_data = merchant_data
-    else:
-        update_data = merchant_data.dict(exclude_unset=True)
+    update_data = merchant_data
+    if not isinstance(merchant_data, dict):
+        try:
+            update_data = merchant_data.dict(exclude_unset=True)
+        except Exception as e:
+            print(f"转换更新数据时出错: {str(e)}")
+            update_data = merchant_data  # 保持原样
     
-    # 特别处理服务半径字段 - 直接更新模型实例
+    # 特别处理服务半径字段 - 明确支持浮点数
     new_radius = None
-    boundary_data = None
-    
     if 'service_radius' in update_data and update_data['service_radius'] is not None:
-        print(f"将服务半径从 {merchant.service_radius} 更新为 {update_data['service_radius']}")
-        new_radius = float(update_data['service_radius'])
-        merchant.service_radius = new_radius
+        try:
+            # 明确转换为浮点数，允许"3.5"这样的字符串
+            new_radius = float(update_data['service_radius'])
+            print(f"服务半径值转换成功: {new_radius}, 类型: {type(new_radius)}")
+            update_data['service_radius'] = new_radius
+            
+            # 直接更新模型实例，避免ORM问题
+            merchant.service_radius = new_radius
+        except (ValueError, TypeError) as e:
+            print(f"服务半径转换错误: {e}, 原始值: {update_data['service_radius']}, 类型: {type(update_data['service_radius'])}")
+            raise HTTPException(
+                status_code=422, 
+                detail=f"服务半径必须是数值类型，当前值: {update_data['service_radius']}"
+            )
     
     # 更新商户基本信息
-    updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=merchant_data)
+    try:
+        updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=update_data)
+        print(f"基本信息更新成功，服务半径: {updated_merchant.service_radius}")
+    except Exception as e:
+        print(f"商户更新失败: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"商户更新失败: {str(e)}")
     
     # 验证服务半径是否正确更新
-    print(f"更新后的服务半径: {updated_merchant.service_radius}")
-    if 'service_radius' in update_data and update_data['service_radius'] is not None and updated_merchant.service_radius != update_data['service_radius']:
-        print(f"警告：服务半径更新失败！期望值: {update_data['service_radius']}, 实际值: {updated_merchant.service_radius}")
-        # 强制更新服务半径 - 使用原始SQL
-        try:
-            db.execute(
-                text("UPDATE merchants SET service_radius = :radius WHERE id = :id"),
-                {"radius": float(update_data['service_radius']), "id": merchant_id}
-            )
-            db.commit()
-            print(f"通过原始SQL更新服务半径成功")
-            # 重新获取商户以确认更新
-            updated_merchant = crud_merchant.get(db, id=merchant_id)
-            print(f"最终服务半径值: {updated_merchant.service_radius}")
-            
-            # 更新 new_radius 值
-            new_radius = float(update_data['service_radius'])
-        except Exception as e:
-            print(f"SQL更新服务半径失败: {str(e)}")
+    if 'service_radius' in update_data and update_data['service_radius'] is not None:
+        print(f"更新后的服务半径: {updated_merchant.service_radius}")
+        if updated_merchant.service_radius != update_data['service_radius']:
+            print(f"警告：服务半径更新失败！期望值: {update_data['service_radius']}, 实际值: {updated_merchant.service_radius}")
+            # 强制更新服务半径 - 使用原始SQL
+            try:
+                db.execute(
+                    text("UPDATE merchants SET service_radius = :radius WHERE id = :id"),
+                    {"radius": float(update_data['service_radius']), "id": merchant_id}
+                )
+                db.commit()
+                print(f"通过原始SQL更新服务半径成功")
+                # 重新获取商户以确认更新
+                updated_merchant = crud_merchant.get(db, id=merchant_id)
+                print(f"最终服务半径值: {updated_merchant.service_radius}")
+                
+                # 更新 new_radius 值
+                new_radius = float(update_data['service_radius'])
+            except Exception as e:
+                print(f"SQL更新服务半径失败: {str(e)}")
     
     # 更新分类关联
-    if merchant_data.category_ids is not None:
+    if hasattr(merchant_data, 'category_ids') and merchant_data.category_ids is not None:
+        category_ids = merchant_data.category_ids
         # 删除旧的关联
         db.query(MerchantCategory).filter(
             MerchantCategory.merchant_id == merchant_id
         ).delete()
         
         # 添加新的关联，并验证分类ID是否存在
-        for category_id in merchant_data.category_ids:
-            category = crud_category.get(db, id=category_id)
+        from app.models.category import Category
+        for category_id in category_ids:
+            category = db.query(Category).filter(Category.id == category_id).first()
+            if not category:
+                raise HTTPException(status_code=404, detail=f"分类ID {category_id} 不存在")
+            merchant_category = MerchantCategory(
+                merchant_id=merchant_id,
+                category_id=category_id
+            )
+            db.add(merchant_category)
+        db.commit()
+    elif isinstance(update_data, dict) and 'category_ids' in update_data and update_data['category_ids'] is not None:
+        # 删除旧的关联
+        db.query(MerchantCategory).filter(
+            MerchantCategory.merchant_id == merchant_id
+        ).delete()
+        
+        # 添加新的关联
+        from app.models.category import Category
+        for category_id in update_data['category_ids']:
+            category = db.query(Category).filter(Category.id == category_id).first()
             if not category:
                 raise HTTPException(status_code=404, detail=f"分类ID {category_id} 不存在")
             merchant_category = MerchantCategory(
@@ -245,11 +312,20 @@ async def update_merchant(
         db.commit()
     
     # 计算服务区域边界坐标
+    from app.services.merchant_service import get_merchant_detail
     merchant_with_details = await get_merchant_detail(db=db, merchant_id=merchant_id)
     
     # 如果更新了服务半径或位置信息，计算新的边界
-    if (updated_merchant.latitude and updated_merchant.longitude and 
-        ('service_radius' in update_data or 'latitude' in update_data or 'longitude' in update_data)):
+    update_coordinates = False
+    if 'latitude' in update_data:
+        update_coordinates = True
+    if 'longitude' in update_data:
+        update_coordinates = True
+    if 'service_radius' in update_data:
+        update_coordinates = True
+    
+    if update_coordinates and updated_merchant.latitude and updated_merchant.longitude and updated_merchant.service_radius:
+        print("\n开始计算新的服务区域边界坐标")
         
         boundary_data = calculate_boundary_points(
             updated_merchant.latitude,
@@ -257,22 +333,36 @@ async def update_merchant(
             updated_merchant.service_radius
         )
         
-        print("\n===== 服务区域边界坐标 =====")
         print(f"服务区中心点: ({updated_merchant.latitude}, {updated_merchant.longitude})")
         print(f"服务半径: {updated_merchant.service_radius} 公里")
         
-        if boundary_data and boundary_data["valid"]:
-            print(f"北边界: {boundary_data['boundaries']['north']}°")
-            print(f"南边界: {boundary_data['boundaries']['south']}°")
-            print(f"东边界: {boundary_data['boundaries']['east']}°")
-            print(f"西边界: {boundary_data['boundaries']['west']}°")
-            print(f"覆盖面积: 约 {boundary_data['coverage_area_km2']} 平方公里")
+        if boundary_data and boundary_data.get("valid", False):
+            boundaries = boundary_data.get("boundaries", {})
+            
+            # 更新商户数据库记录的边界坐标
+            try:
+                updated_merchant.north_boundary = boundaries.get("north")
+                updated_merchant.south_boundary = boundaries.get("south")
+                updated_merchant.east_boundary = boundaries.get("east")
+                updated_merchant.west_boundary = boundaries.get("west")
+                db.commit()
+                
+                print(f"北边界: {boundaries.get('north')}°")
+                print(f"南边界: {boundaries.get('south')}°")
+                print(f"东边界: {boundaries.get('east')}°")
+                print(f"西边界: {boundaries.get('west')}°")
+                print(f"覆盖面积: 约 {boundary_data.get('coverage_area_km2')} 平方公里")
+                print("边界坐标已更新")
+            except Exception as e:
+                print(f"更新边界坐标时出错: {str(e)}")
+                traceback.print_exc()
         else:
             print(f"边界计算错误: {boundary_data.get('error', '未知错误')}")
-        print("===== 边界坐标计算完成 =====\n")
+        
+        print("服务区域边界坐标计算完成\n")
     
     # 将商户详情和边界数据合并返回
-    merchant_with_details["service_boundary"] = boundary_data
+    merchant_with_details["service_boundary"] = boundary_data if 'boundary_data' in locals() else None
     
     return merchant_with_details
 
@@ -495,7 +585,16 @@ async def get_categories(db: Session, is_active: Optional[bool] = None) -> List[
     if is_active is not None:
         query = query.filter(Category.is_active == is_active)
     
-    return query.order_by(Category.sort_order).all()
+    categories = query.order_by(Category.sort_order).all()
+    
+    # 确保每个分类对象包含所需字段
+    for category in categories:
+        if not hasattr(category, 'created_at') or category.created_at is None:
+            category.created_at = datetime.now()
+        if not hasattr(category, 'updated_at') or category.updated_at is None:
+            category.updated_at = datetime.now()
+    
+    return categories
 
 
 async def create_category(db: Session, category_data: CategoryCreate) -> Category:

@@ -11,6 +11,7 @@ from app.models.product import Product
 from app.models.group import Group
 from app.models.order import Order
 from app.models.review import Review
+from app.models.order import Order, OrderItem  # 添加OrderItem导入
 
 
 async def get_admin_dashboard(db: Session) -> Dict:
