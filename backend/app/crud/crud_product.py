@@ -2,6 +2,7 @@
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
+from typing import Dict, Any, Union
 
 from app.models.product import Product, product_categories
 from app.schemas.product import ProductCreate, ProductUpdate
@@ -15,15 +16,22 @@ class CRUDProduct:
     ) -> List[Product]:
         return db.query(Product).offset(skip).limit(limit).all()
     
-    def create(self, db: Session, *, obj_in: ProductCreate, merchant_id: int) -> Product:
-        obj_in_data = obj_in.dict(exclude={"category_ids", "images", "specifications"})
+    def create(self, db: Session, *, obj_in: Union[ProductCreate, Dict[str, Any]], merchant_id: int) -> Product:
+    # 检查是否是字典类型
+        if isinstance(obj_in, dict):
+            obj_in_data = obj_in.copy()  # 复制字典以避免修改原始数据
+            # 移除已存在的merchant_id，防止重复
+            obj_in_data.pop('merchant_id', None)
+        else:
+            obj_in_data = obj_in.dict(exclude={"category_ids", "images", "specifications", "merchant_id"})
+        
+        # 创建商品，添加merchant_id
         db_obj = Product(**obj_in_data, merchant_id=merchant_id)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        db.flush()  # 获取商品ID
         
         # 处理分类关联
-        category_ids = obj_in.category_ids or []
+        category_ids = obj_in.get("category_ids", []) if isinstance(obj_in, dict) else obj_in.category_ids or []
         for category_id in category_ids:
             stmt = product_categories.insert().values(
                 product_id=db_obj.id,
@@ -32,6 +40,7 @@ class CRUDProduct:
             db.execute(stmt)
         
         db.commit()
+        db.refresh(db_obj)
         return db_obj
     
     def update(

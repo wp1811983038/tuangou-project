@@ -43,10 +43,10 @@ class MerchantBase(BaseModel):
     description: Optional[str] = None
     contact_name: str
     contact_phone: str
-    province: str
-    city: str
-    district: str
-    address: str
+    province: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     business_hours: Optional[str] = None

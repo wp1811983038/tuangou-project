@@ -139,36 +139,20 @@ def get_current_active_user(
 
 def get_current_merchant(
     current_user: User = Depends(get_current_active_user),
-) -> Tuple[User, Merchant]:
-    """
-    获取当前商户用户
-    
-    Args:
-        current_user: 当前用户
-        
-    Returns:
-        (当前用户, 商户对象)
-        
-    Raises:
-        HTTPException: 非商户用户
-    """
+    db: Session = Depends(get_db)  # 添加这个参数
+) -> User:
+    """获取当前商户用户"""
     if not current_user.merchant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="需要商户权限"
-        )
+        raise HTTPException(status_code=403, detail="需要商户权限")
     
     merchant = db.query(Merchant).filter(
         Merchant.id == current_user.merchant_id
     ).first()
     
     if not merchant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="商户不存在"
-        )
+        raise HTTPException(status_code=404, detail="商户不存在")
     
-    return current_user, merchant
+    return current_user
 
 
 # 通常在app/api/deps.py

@@ -169,4 +169,4 @@ class MerchantRegister(UserRegister):
     merchant_name: str
     contact_name: str
     contact_phone: str
-    business_license: Optional[str] = None
+    license_image: Optional[str] = None  # 改为与数据库模型一致的名称
