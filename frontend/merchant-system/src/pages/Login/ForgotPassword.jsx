@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Form, Input, Button, message } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth';
-import '../index.less';
+import { useAuth } from '../../../src/hooks/useAuth'; 
+import './index.less';
 
 const ForgotPassword = () => {
   const [form] = Form.useForm();

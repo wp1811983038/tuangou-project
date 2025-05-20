@@ -1,6 +1,7 @@
 // src/layouts/MerchantLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Dropdown, Avatar, Button, Drawer, Badge, Spin } from 'antd';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   MenuUnfoldOutlined,
   MenuFoldOutlined,
@@ -15,15 +16,13 @@ import {
   UserOutlined,
   LogoutOutlined,
   HomeFilled,
-  ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import './MerchantLayout.less';
 
 const { Header, Sider, Content } = Layout;
 
-const MerchantLayout = ({ children }) => {
+const MerchantLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -297,7 +296,7 @@ const MerchantLayout = ({ children }) => {
         </Header>
         
         <Content className="site-content">
-          {children}
+          <Outlet />
         </Content>
       </Layout>
     </Layout>

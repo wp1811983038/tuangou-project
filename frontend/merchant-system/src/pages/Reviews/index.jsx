@@ -1,15 +1,16 @@
 // src/pages/Reviews/index.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Table, Button, Input, Space, Rate, Tooltip, 
-  message, Select, Row, Col, Badge, Modal, Form, 
-  Avatar, Tag, Image, Typography, List, Divider, 
-  Comment, Tabs
+import {
+  Card, Table, Button, Input, Space, Rate, Tooltip,
+  message, Select, Row, Col, Badge, Modal, Form,
+  Avatar, Image, Typography, Divider, Tabs
 } from 'antd';
-import { 
-  SearchOutlined, ReloadOutlined, EyeOutlined, 
-  MessageOutlined, CloseOutlined, UserOutlined,
-  StarOutlined, LikeOutlined, StarFilled
+// 单独导入Comment
+import { Comment } from '@ant-design/compatible';
+import {
+  SearchOutlined, ReloadOutlined, EyeOutlined,
+  MessageOutlined, UserOutlined,
+  StarOutlined
 } from '@ant-design/icons';
 import { useRequest } from '../../hooks/useRequest';
 import moment from 'moment';
@@ -50,9 +51,9 @@ const ReviewList = () => {
     good_count: 0,
     good_rate: 100
   });
-  
+
   const { fetchData } = useRequest();
-  
+
   // 加载商品列表
   const loadProducts = useCallback(async () => {
     try {
@@ -68,7 +69,7 @@ const ReviewList = () => {
       message.error('加载商品列表失败');
     }
   }, [fetchData]);
-  
+
   // 加载统计数据
   const loadReviewStats = useCallback(async (productId) => {
     if (!productId) {
@@ -82,7 +83,7 @@ const ReviewList = () => {
       });
       return;
     }
-    
+
     try {
       const res = await fetchData({
         url: `/api/v1/reviews/product/${productId}/stats`,
@@ -95,7 +96,7 @@ const ReviewList = () => {
       console.error('加载评价统计数据失败:', error);
     }
   }, [fetchData]);
-  
+
   // 加载评价列表
   const loadReviews = useCallback(async (params = {}) => {
     setLoading(true);
@@ -106,22 +107,22 @@ const ReviewList = () => {
         ...searchParams,
         ...params
       };
-      
+
       // 移除未定义的参数
-      Object.keys(queryParams).forEach(key => 
+      Object.keys(queryParams).forEach(key =>
         queryParams[key] === undefined && delete queryParams[key]
       );
-      
+
       // 构建查询字符串
       const queryString = Object.keys(queryParams)
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
-      
+
       const res = await fetchData({
         url: `/api/v1/reviews?${queryString}`,
         method: 'GET'
       });
-      
+
       if (res?.data) {
         setReviewList(res.data.items || []);
         setPagination({
@@ -138,13 +139,13 @@ const ReviewList = () => {
       setLoading(false);
     }
   }, [fetchData, pagination, searchParams]);
-  
+
   // 初始加载
   useEffect(() => {
     loadProducts();
     loadReviews();
   }, [loadProducts, loadReviews]);
-  
+
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {
     setPagination(pagination);
@@ -155,14 +156,14 @@ const ReviewList = () => {
       sort_order: sorter.order === 'descend' ? 'desc' : 'asc'
     });
   };
-  
+
   // 处理搜索
   const handleSearch = () => {
     setPagination({ ...pagination, current: 1 });
     loadReviews({ page: 1 });
     loadReviewStats(searchParams.product_id);
   };
-  
+
   // 处理重置搜索
   const handleReset = () => {
     setSearchParams({
@@ -178,13 +179,13 @@ const ReviewList = () => {
     loadReviews({ page: 1 });
     loadReviewStats(undefined);
   };
-  
+
   // 处理查看评价详情
   const handleViewReview = (review) => {
     setSelectedReview(review);
     setDetailModalVisible(true);
   };
-  
+
   // 处理回复评价
   const handleReplyReview = (review) => {
     setSelectedReview(review);
@@ -193,12 +194,12 @@ const ReviewList = () => {
     });
     setReplyModalVisible(true);
   };
-  
+
   // 提交回复
   const handleSubmitReply = async () => {
     try {
       const values = await replyForm.validateFields();
-      
+
       await fetchData({
         url: `/api/v1/reviews/${selectedReview.id}/reply`,
         method: 'POST',
@@ -207,7 +208,7 @@ const ReviewList = () => {
           reply_content: values.reply_content
         }
       });
-      
+
       message.success('回复成功');
       setReplyModalVisible(false);
       loadReviews();
@@ -216,7 +217,7 @@ const ReviewList = () => {
       message.error('回复失败');
     }
   };
-  
+
   // 评价状态映射
   const getReviewStatus = (status) => {
     const statusMap = {
@@ -226,7 +227,7 @@ const ReviewList = () => {
     };
     return statusMap[status] || { text: '未知', color: 'default' };
   };
-  
+
   // 表格列配置
   const columns = [
     {
@@ -260,7 +261,7 @@ const ReviewList = () => {
             <div className="review-images">
               {record.images.slice(0, 3).map((img, index) => (
                 <div key={index} className="image-item">
-                  <img src={img.image_url} alt={`图片${index+1}`} />
+                  <img src={img.image_url} alt={`图片${index + 1}`} />
                 </div>
               ))}
               {record.images.length > 3 && (
@@ -303,8 +304,8 @@ const ReviewList = () => {
       render: (status) => {
         const statusInfo = getReviewStatus(status);
         return (
-          <Badge 
-            status={statusInfo.color} 
+          <Badge
+            status={statusInfo.color}
             text={statusInfo.text}
           />
         );
@@ -317,19 +318,19 @@ const ReviewList = () => {
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="查看详情">
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<EyeOutlined />} 
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
               onClick={() => handleViewReview(record)}
             />
           </Tooltip>
-          
+
           <Tooltip title="回复评价">
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<MessageOutlined />} 
+            <Button
+              type="text"
+              size="small"
+              icon={<MessageOutlined />}
               onClick={() => handleReplyReview(record)}
               disabled={record.status !== 1}
             />
@@ -338,7 +339,7 @@ const ReviewList = () => {
       ),
     },
   ];
-  
+
   return (
     <div className="review-list-page">
       <Card className="search-card">
@@ -374,8 +375,8 @@ const ReviewList = () => {
             <Select
               placeholder="评分筛选"
               value={searchParams.min_rating}
-              onChange={(value) => setSearchParams({ 
-                ...searchParams, 
+              onChange={(value) => setSearchParams({
+                ...searchParams,
                 min_rating: value,
                 max_rating: value
               })}
@@ -402,7 +403,7 @@ const ReviewList = () => {
               <Option value={2}>已拒绝</Option>
             </Select>
           </Col>
-          
+
           <Col xs={24} sm={12} md={6} lg={6}>
             <Select
               placeholder="有无回复"
@@ -437,7 +438,7 @@ const ReviewList = () => {
           </Col>
         </Row>
       </Card>
-      
+
       {searchParams.product_id && reviewStats.total_count > 0 && (
         <Card className="stats-card">
           <div className="stats-header">
@@ -453,12 +454,12 @@ const ReviewList = () => {
                   <div key={star} className="rating-row">
                     <span className="star-label">{star}星</span>
                     <div className="progress-bar">
-                      <div 
-                        className="progress-inner" 
-                        style={{ 
-                          width: `${reviewStats.total_count > 0 
-                            ? (reviewStats.rating_counts[star] || 0) / reviewStats.total_count * 100 
-                            : 0}%` 
+                      <div
+                        className="progress-inner"
+                        style={{
+                          width: `${reviewStats.total_count > 0
+                            ? (reviewStats.rating_counts[star] || 0) / reviewStats.total_count * 100
+                            : 0}%`
                         }}
                       ></div>
                     </div>
@@ -484,9 +485,9 @@ const ReviewList = () => {
           </div>
         </Card>
       )}
-      
-      <Card 
-        title="评价列表" 
+
+      <Card
+        title="评价列表"
         className="review-table-card"
       >
         <Table
@@ -517,7 +518,7 @@ const ReviewList = () => {
           }}
         />
       </Card>
-      
+
       {/* 回复评价弹窗 */}
       <Modal
         title="回复评价"
@@ -549,29 +550,29 @@ const ReviewList = () => {
                 <div className="image-list">
                   {selectedReview.images.map((img, index) => (
                     <div key={index} className="image-item">
-                      <img src={img.image_url} alt={`图片${index+1}`} />
+                      <img src={img.image_url} alt={`图片${index + 1}`} />
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            
+
             <Divider dashed />
-            
+
             <Form form={replyForm}>
               <Form.Item
                 name="reply_content"
                 rules={[{ required: true, message: '请输入回复内容' }]}
               >
-                <TextArea 
-                  rows={4} 
+                <TextArea
+                  rows={4}
                   placeholder="请输入回复内容，不超过200字"
                   maxLength={200}
                   showCount
                 />
               </Form.Item>
             </Form>
-            
+
             <div className="reply-tips">
               <Text type="secondary">
                 * 回复评价将直接显示给用户，请注意语言得体，不要包含敏感信息
@@ -580,7 +581,7 @@ const ReviewList = () => {
           </div>
         )}
       </Modal>
-      
+
       {/* 评价详情弹窗 */}
       <Modal
         title="评价详情"
@@ -618,17 +619,17 @@ const ReviewList = () => {
                 </div>
               </div>
             </div>
-            
+
             <Divider />
-            
+
             <Tabs defaultActiveKey="review">
-              <TabPane 
+              <TabPane
                 tab={
                   <span>
                     <StarOutlined />
                     评价详情
                   </span>
-                } 
+                }
                 key="review"
               >
                 <div className="review-full">
@@ -652,19 +653,19 @@ const ReviewList = () => {
                       <Rate disabled value={selectedReview.rating} />
                     </div>
                   </div>
-                  
+
                   <div className="review-body">
                     <Paragraph>
                       {selectedReview.content}
                     </Paragraph>
-                    
+
                     {selectedReview.images && selectedReview.images.length > 0 && (
                       <div className="image-gallery">
                         {selectedReview.images.map((img, index) => (
                           <div key={index} className="gallery-item">
                             <Image
                               src={img.image_url}
-                              alt={`评价图片${index+1}`}
+                              alt={`评价图片${index + 1}`}
                               width={120}
                             />
                           </div>
@@ -672,7 +673,7 @@ const ReviewList = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {selectedReview.reply_content && (
                     <div className="merchant-reply">
                       <Comment
@@ -694,13 +695,13 @@ const ReviewList = () => {
                   )}
                 </div>
               </TabPane>
-              <TabPane 
+              <TabPane
                 tab={
                   <span>
                     <MessageOutlined />
                     评价回复
                   </span>
-                } 
+                }
                 key="reply"
               >
                 {selectedReview.reply_content ? (
@@ -712,9 +713,9 @@ const ReviewList = () => {
                     <div className="reply-time">
                       回复时间: {moment(selectedReview.reply_time).format('YYYY-MM-DD HH:mm')}
                     </div>
-                    
+
                     <Divider dashed />
-                    
+
                     <div className="reply-actions">
                       <Button
                         type="primary"
