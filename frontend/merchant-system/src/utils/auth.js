@@ -1,3 +1,4 @@
+// src/utils/auth.js
 import Cookies from 'js-cookie';
 
 const TOKEN_KEY = 'merchant_token';
@@ -44,6 +45,20 @@ export function saveRememberedCredentials(username, password) {
     localStorage.setItem(REMEMBER_KEY, JSON.stringify(credentials));
   } catch (error) {
     console.error('保存记住的凭据失败:', error);
+  }
+}
+
+/**
+ * 获取记住的凭据
+ * @returns {Object|null} 记住的凭据
+ */
+export function getRememberedCredentials() {
+  try {
+    const remembered = localStorage.getItem(REMEMBER_KEY);
+    return remembered ? JSON.parse(remembered) : null;
+  } catch (error) {
+    console.error('获取记住的凭据失败:', error);
+    return null;
   }
 }
 

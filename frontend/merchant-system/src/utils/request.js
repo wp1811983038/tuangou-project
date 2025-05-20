@@ -1,12 +1,11 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
-import { getToken } from '../utils/auth';
+import { getToken } from './auth';
 import { message } from 'antd';
 
-// 创建axios实例
+// 创建axios实例，根据环境动态设置baseURL
 const instance = axios.create({
-  // 修改为相对路径，使用代理配置
-  baseURL: '/api/v1',  // 之前可能是 'http://localhost:8000'
+  baseURL: window.location.hostname === 'localhost' ? '/api/v1' : 'http://localhost:8000/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -20,6 +19,11 @@ instance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // 添加处理CORS的头信息
+    config.headers['X-Requested-With'] = 'XMLHttpRequest';
+    config.headers['Access-Control-Allow-Origin'] = '*';
+    
     return config;
   },
   (error) => {

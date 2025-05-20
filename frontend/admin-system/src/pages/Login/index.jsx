@@ -26,7 +26,7 @@ const LoginPage = () => {
   useEffect(() => {
     if (error) {
       message.error(error);
-      clearAuthError();
+      clearError();
     }
   }, [error, clearAuthError]);
 
