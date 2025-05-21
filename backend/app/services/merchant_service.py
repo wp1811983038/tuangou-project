@@ -24,100 +24,123 @@ async def get_merchant(db: Session, merchant_id: int) -> Merchant:
 
 async def get_merchant_detail(db: Session, merchant_id: int) -> Dict:
     """获取商户详细信息"""
-    # 获取商户信息，包含分类关联
-    merchant = db.query(Merchant).options(
-        joinedload(Merchant.categories).joinedload(MerchantCategory.category)
-    ).filter(Merchant.id == merchant_id).first()
-    
-    if not merchant:
-        raise HTTPException(status_code=404, detail="商户不存在")
-    
-    # 记录调试信息
-    print(f"从数据库获取的商户信息 - ID: {merchant.id}, 名称: {merchant.name}")
-    print(f"服务半径(原始值): {merchant.service_radius}, 类型: {type(merchant.service_radius)}")
-    
-    # 获取商品数量
-    product_count = db.query(func.count(Product.id)).filter(
-        Product.merchant_id == merchant_id
-    ).scalar() or 0
-    
-    # 获取分类信息 - 确保包含时间戳字段
-    categories = []
-    for mc in merchant.categories:
-        if mc.category:
-            categories.append({
-                "id": mc.category.id,
-                "name": mc.category.name,
-                "icon": mc.category.icon,
-                # 添加必要的时间戳字段
-                "created_at": mc.category.created_at,
-                "updated_at": mc.category.updated_at,
-                # 如果还有其他必要字段，也可以在这里添加
-                "sort_order": mc.category.sort_order,
-                "is_active": mc.category.is_active
-            })
-    
-    # 构建响应数据，添加边界坐标字段
-    merchant_data = {
-        "id": merchant.id,
-        "name": merchant.name,
-        "logo": merchant.logo,
-        "cover": merchant.cover,
-        "description": merchant.description,
-        "license_number": merchant.license_number,
-        "license_image": merchant.license_image,
-        "contact_name": merchant.contact_name,
-        "contact_phone": merchant.contact_phone,
-        "province": merchant.province,
-        "city": merchant.city,
-        "district": merchant.district,
-        "address": merchant.address,
-        "latitude": merchant.latitude,
-        "longitude": merchant.longitude,
-        "business_hours": merchant.business_hours,
-        "status": merchant.status,
-        "rating": merchant.rating,
-        "commission_rate": merchant.commission_rate,
-        "balance": merchant.balance,
-        "product_count": product_count,
-        "categories": categories,
-        "created_at": merchant.created_at,
-        "updated_at": merchant.updated_at,
+    try:
+        # 获取商户信息，包含分类关联
+        merchant = db.query(Merchant).options(
+            joinedload(Merchant.categories).joinedload(MerchantCategory.category)
+        ).filter(Merchant.id == merchant_id).first()
         
-        # 添加服务半径字段
-        "service_radius": merchant.service_radius,
+        if not merchant:
+            raise HTTPException(status_code=404, detail="商户不存在")
         
-        # 添加边界坐标字段
-        "north_boundary": merchant.north_boundary,
-        "south_boundary": merchant.south_boundary,
-        "east_boundary": merchant.east_boundary,
-        "west_boundary": merchant.west_boundary
-    }
-    
-    # 如果所有边界坐标都有值，添加结构化的边界信息
-    if merchant.north_boundary and merchant.south_boundary and merchant.east_boundary and merchant.west_boundary:
-        merchant_data["boundaries"] = {
-            "north": merchant.north_boundary,
-            "south": merchant.south_boundary,
-            "east": merchant.east_boundary,
-            "west": merchant.west_boundary
+        # 记录调试信息
+        print(f"从数据库获取的商户信息 - ID: {merchant.id}, 名称: {merchant.name}")
+        
+        # 确保地理坐标和服务半径有默认值
+        latitude = merchant.latitude or 30.0
+        longitude = merchant.longitude or 120.0
+        service_radius = merchant.service_radius or 5.0
+        
+        # 确保边界坐标存在
+        north_boundary = merchant.north_boundary
+        south_boundary = merchant.south_boundary
+        east_boundary = merchant.east_boundary
+        west_boundary = merchant.west_boundary
+        
+        # 如果边界坐标缺失，计算默认值
+        if not north_boundary or not south_boundary or not east_boundary or not west_boundary:
+            try:
+                import math
+                # 转换为弧度
+                lat_rad = latitude * math.pi / 180
+                
+                # 计算1度经纬度对应的公里数
+                km_per_lat_degree = 111.32  # 纬度每度约111.32公里
+                km_per_lng_degree = 111.32 * math.cos(lat_rad)  # 经度随纬度变化
+                
+                # 计算边界坐标
+                north_boundary = latitude + (service_radius / km_per_lat_degree)
+                south_boundary = latitude - (service_radius / km_per_lat_degree)
+                east_boundary = longitude + (service_radius / km_per_lng_degree)
+                west_boundary = longitude - (service_radius / km_per_lng_degree)
+                
+                # 更新到数据库
+                merchant.north_boundary = north_boundary
+                merchant.south_boundary = south_boundary
+                merchant.east_boundary = east_boundary
+                merchant.west_boundary = west_boundary
+                db.commit()
+            except Exception as e:
+                print(f"计算边界坐标出错: {e}")
+                # 设置默认值避免返回None
+                north_boundary = latitude + 0.05
+                south_boundary = latitude - 0.05
+                east_boundary = longitude + 0.05
+                west_boundary = longitude - 0.05
+        
+        # 获取商品数量
+        product_count = db.query(func.count(Product.id)).filter(
+            Product.merchant_id == merchant_id
+        ).scalar() or 0
+        
+        # 构建响应数据，确保所有字段都有值
+        merchant_data = {
+            "id": merchant.id,
+            "name": merchant.name,
+            "logo": merchant.logo or "/static/images/merchants/default-logo.png",
+            "cover": merchant.cover or "/static/images/merchants/default-cover.jpg",
+            "description": merchant.description or "",
+            "license_number": merchant.license_number or "",
+            "license_image": merchant.license_image or "",
+            "contact_name": merchant.contact_name or "",
+            "contact_phone": merchant.contact_phone or "",
+            "province": merchant.province or "",
+            "city": merchant.city or "",
+            "district": merchant.district or "",
+            "address": merchant.address or "",
+            "latitude": latitude,
+            "longitude": longitude,
+            "business_hours": merchant.business_hours or "09:00-18:00",
+            "status": merchant.status,
+            "rating": merchant.rating or 5.0,
+            "commission_rate": merchant.commission_rate or 0.0,
+            "balance": merchant.balance or 0.0,
+            "product_count": product_count,
+            "categories": [],
+            "created_at": merchant.created_at,
+            "updated_at": merchant.updated_at,
+            
+            # 添加服务半径字段
+            "service_radius": service_radius,
+            
+            # 添加边界坐标字段
+            "north_boundary": north_boundary,
+            "south_boundary": south_boundary,
+            "east_boundary": east_boundary,
+            "west_boundary": west_boundary
         }
         
-        # 计算并添加近似覆盖面积（仅用于展示，不存储）
-        if merchant.service_radius:
-            coverage_area = 3.14159 * (merchant.service_radius ** 2)
-            merchant_data["boundaries"]["coverage_area_km2"] = round(coverage_area, 2)
-    
-    # 记录调试信息
-    print(f"返回商户详情 - ID: {merchant.id}, 名称: {merchant.name}")
-    print(f"服务半径(响应值): {merchant_data['service_radius']}, 类型: {type(merchant_data['service_radius'])}")
-    
-    if merchant.north_boundary:
-        print(f"边界坐标: 北({merchant.north_boundary}), 南({merchant.south_boundary}), 东({merchant.east_boundary}), 西({merchant.west_boundary})")
-    
-    print(f"数据库中的实际服务半径值: {merchant.service_radius}")
-    
-    return merchant_data
+        # 获取分类信息
+        categories = []
+        for mc in merchant.categories:
+            if mc.category:
+                categories.append({
+                    "id": mc.category.id,
+                    "name": mc.category.name,
+                    "icon": mc.category.icon or "",
+                    "created_at": mc.category.created_at,
+                    "updated_at": mc.category.updated_at,
+                    "sort_order": mc.category.sort_order or 0,
+                    "is_active": mc.category.is_active
+                })
+        merchant_data["categories"] = categories
+        
+        return merchant_data
+    except Exception as e:
+        print(f"获取商户详情时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"获取商户详情时出错: {str(e)}")
 
 
 async def create_merchant(db: Session, merchant_data: MerchantCreate, user_id: int) -> Merchant:
