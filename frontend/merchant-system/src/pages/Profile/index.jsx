@@ -1,14 +1,16 @@
 // src/pages/Profile/index.jsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card, Form, Input, Button, Row, Col, Upload, Space,
   message, Divider, Select, Switch, InputNumber, Spin,
-  Steps, Modal, Typography, Tabs, Result
+  Steps, Modal, Typography, Tabs, Result, Alert
 } from 'antd';
 import {
   UserOutlined, PhoneOutlined, MailOutlined, ShopOutlined,
   EnvironmentOutlined, BankOutlined, UploadOutlined,
-  SaveOutlined, PlusOutlined, LoadingOutlined, LockOutlined
+  SaveOutlined, PlusOutlined, LoadingOutlined, LockOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useRequest } from '../../hooks/useRequest';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,6 +23,7 @@ const { Title, Text, Paragraph } = Typography;
 const { Step } = Steps;
 
 const Profile = () => {
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -33,9 +36,12 @@ const Profile = () => {
   const [passwordForm] = Form.useForm();
   const [serviceRadiusModalVisible, setServiceRadiusModalVisible] = useState(false);
   const [radiusForm] = Form.useForm();
+  const [noMerchantError, setNoMerchantError] = useState(false);
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [merchantErrorDetails, setMerchantErrorDetails] = useState(null);
   
   const { fetchData } = useRequest();
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUserInfo } = useAuth();
   
   // 加载商户信息
   useEffect(() => {
@@ -43,26 +49,58 @@ const Profile = () => {
     console.log("当前认证状态:", localStorage.getItem('merchant_token'));
     console.log("当前用户信息:", currentUser);
     
-    const loadMerchantInfo = async () => {
-      setLoading(true);
+    loadMerchantInfo();
+  }, [currentUser]);
+  
+  // 商户信息加载函数
+  const loadMerchantInfo = async () => {
+    setLoading(true);
+    try {
+      // 检查用户是否已加载
+      if (!currentUser) {
+        console.log("用户信息尚未加载完成，稍后重试");
+        setTimeout(loadMerchantInfo, 1000); // 延迟重试
+        return;
+      }
+      
+      // 检查是否有商户ID
+      if (!currentUser.merchant_id) {
+        console.error("当前用户不是商户账号", currentUser);
+        setNoMerchantError(true);
+        setMerchantErrorDetails({
+          title: "您的账号未关联商户",
+          description: "您需要一个商户账号才能访问此页面"
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // 先加载分类列表 - 这个错误不会影响整体流程
       try {
-        // 加载分类列表
         const catRes = await fetchData({
           url: '/api/v1/merchants/categories/all',
-          method: 'GET'
+          method: 'GET',
+          showError: false // 不显示错误消息
         });
+        
         if (catRes) {
           setCategories(catRes);
         }
-        
-        // 加载商户信息
+      } catch (catError) {
+        console.warn("加载分类列表失败，继续加载其他数据:", catError);
+      }
+      
+      // 加载商户信息
+      try {
         const res = await fetchData({
           url: '/api/v1/merchants/my',
-          method: 'GET'
+          method: 'GET',
+          showError: false // 禁用默认错误消息，我们将自定义处理
         });
         
         if (res) {
           setMerchantData(res);
+          setNoMerchantError(false);
           
           // 设置表单值
           form.setFieldsValue({
@@ -87,14 +125,58 @@ const Profile = () => {
         }
       } catch (error) {
         console.error('加载商户信息失败:', error);
-        message.error('加载商户信息失败');
-      } finally {
-        setLoading(false);
+        setNoMerchantError(true);
+        
+        // 处理不同的错误情况
+        let errorTitle = "无法加载商户信息";
+        let errorDescription = "发生未知错误，请稍后重试";
+        
+        // 解析错误信息
+        if (error.response) {
+          const { status, data } = error.response;
+          
+          if (status === 422) {
+            if (data.detail?.includes("未关联")) {
+              errorTitle = "您的账号未正确关联商户";
+              errorDescription = data.detail || "请联系管理员处理账号关联问题";
+            } else if (data.detail?.includes("不存在")) {
+              errorTitle = "关联的商户信息不存在";
+              errorDescription = "您的账号关联了无效的商户，请联系管理员";
+              
+              // 可以尝试自动刷新用户信息，获取更新后的状态
+              setTimeout(() => refreshUserInfo(), 2000);
+            } else if (data.detail?.includes("审核中")) {
+              errorTitle = "商户正在审核中";
+              errorDescription = "您的商户信息正在审核，请耐心等待";
+            } else if (data.detail?.includes("禁用")) {
+              errorTitle = "商户已被禁用";
+              errorDescription = "您的商户账号已被禁用，请联系平台管理员";
+            } else {
+              errorTitle = "商户数据验证失败";
+              errorDescription = data.detail || "商户信息有误，请联系管理员";
+            }
+          } else if (status === 401 || status === 403) {
+            errorTitle = "没有访问权限";
+            errorDescription = "您没有权限访问商户信息";
+          } else {
+            errorDescription = data?.detail || data?.message || "服务器错误，请稍后重试";
+          }
+        } else if (error.request) {
+          errorTitle = "网络连接失败";
+          errorDescription = "无法连接到服务器，请检查网络连接";
+        }
+        
+        setMerchantErrorDetails({
+          title: errorTitle,
+          description: errorDescription
+        });
+        
+        message.error(errorTitle + ": " + errorDescription);
       }
-    };
-    
-    loadMerchantInfo();
-  }, [fetchData, form, currentUser]);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // 保存商户信息
   const handleSave = async () => {
@@ -126,7 +208,7 @@ const Profile = () => {
       });
     } catch (error) {
       console.error('保存失败:', error);
-      message.error('保存失败');
+      message.error('保存失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
     } finally {
       setSaveLoading(false);
     }
@@ -161,7 +243,7 @@ const Profile = () => {
       throw new Error('上传失败');
     } catch (error) {
       console.error('上传失败:', error);
-      message.error('上传失败');
+      message.error('上传失败: ' + (error.message || '未知错误'));
       return '';
     }
   };
@@ -198,7 +280,7 @@ const Profile = () => {
       passwordForm.resetFields();
     } catch (error) {
       console.error('修改密码失败:', error);
-      message.error('修改密码失败');
+      message.error('修改密码失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
     }
   };
   
@@ -229,8 +311,24 @@ const Profile = () => {
       setServiceRadiusModalVisible(false);
     } catch (error) {
       console.error('更新服务半径失败:', error);
-      message.error('更新服务半径失败');
+      message.error('更新服务半径失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
     }
+  };
+  
+  // 处理联系客服
+  const handleContactSupport = () => {
+    setContactModalVisible(true);
+  };
+  
+  // 重试加载商户信息
+  const handleRetryLoading = () => {
+    setNoMerchantError(false);
+    loadMerchantInfo();
+  };
+  
+  // 返回首页
+  const goToDashboard = () => {
+    navigate('/dashboard');
   };
   
   // 渲染审核状态
@@ -255,11 +353,67 @@ const Profile = () => {
     );
   };
   
+  // 如果加载中，显示加载状态
   if (loading) {
     return (
       <div className="profile-loading">
         <Spin size="large" />
         <div>加载中...</div>
+      </div>
+    );
+  }
+  
+  // 如果有商户错误，显示错误提示
+  if (noMerchantError) {
+    return (
+      <div className="merchant-profile">
+        <Card>
+          <Result
+            status="warning"
+            title={merchantErrorDetails?.title || "无法加载商户信息"}
+            subTitle={merchantErrorDetails?.description || "您的账号可能未关联有效的商户，或商户信息有误"}
+            extra={[
+              <Button type="primary" key="dashboard" onClick={goToDashboard}>
+                返回首页
+              </Button>,
+              <Button key="retry" onClick={handleRetryLoading}>
+                重试
+              </Button>,
+              <Button key="contact" onClick={handleContactSupport}>
+                联系客服
+              </Button>
+            ]}
+          >
+            <div className="merchant-error-details">
+              <Alert
+                message="可能的原因"
+                description={
+                  <ul>
+                    <li>您的账号未关联商户</li>
+                    <li>商户信息审核未通过</li>
+                    <li>商户账号已被停用</li>
+                    <li>商户数据出现异常</li>
+                  </ul>
+                }
+                type="info"
+                showIcon
+              />
+            </div>
+          </Result>
+        </Card>
+        
+        {/* 联系客服模态框 */}
+        <Modal
+          title="联系平台客服"
+          open={contactModalVisible}
+          onCancel={() => setContactModalVisible(false)}
+          footer={null}
+        >
+          <p>如需帮助，请联系平台客服：</p>
+          <p><strong>电话：</strong> 400-123-4567</p>
+          <p><strong>邮箱：</strong> support@example.com</p>
+          <p><strong>工作时间：</strong> 周一至周五 9:00-18:00</p>
+        </Modal>
       </div>
     );
   }
@@ -608,7 +762,6 @@ const Profile = () => {
       </Card>
       
       <div className="profile-content">
-        {/* 使用修改后的 Tabs 组件 */}
         <Tabs defaultActiveKey="basic" items={tabItems} />
       </div>
       
@@ -727,6 +880,19 @@ const Profile = () => {
             </div>
           </div>
         </Form>
+      </Modal>
+      
+      {/* 联系客服模态框 */}
+      <Modal
+        title="联系平台客服"
+        open={contactModalVisible}
+        onCancel={() => setContactModalVisible(false)}
+        footer={null}
+      >
+        <p>如需帮助，请联系平台客服：</p>
+        <p><strong>电话：</strong> 400-123-4567</p>
+        <p><strong>邮箱：</strong> support@example.com</p>
+        <p><strong>工作时间：</strong> 周一至周五 9:00-18:00</p>
       </Modal>
     </div>
   );

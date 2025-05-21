@@ -1,9 +1,11 @@
 // src/hooks/useAuth.js
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { useRequest } from './useRequest';
-import { getToken, setToken, removeToken, saveRememberedCredentials } from '../utils/auth';
+import { 
+  getToken, setToken, removeToken, saveRememberedCredentials,
+  isTokenValid, refreshTokenIfNeeded
+} from '../utils/auth';
 import { message } from 'antd';
-import Cookies from 'js-cookie';
 
 // 创建认证上下文
 const AuthContext = createContext(null);
@@ -14,43 +16,77 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const { fetchData } = useRequest();
 
   // 初始化验证用户状态
   useEffect(() => {
     const initAuth = async () => {
-      const token = getToken();
-      console.log("初始化认证 - 当前token:", token);
-      
-      if (token) {
+      try {
+        const token = getToken();
+        console.log("初始化认证 - 当前token:", token ? "存在" : "不存在");
+        
+        if (!token) {
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+          setAuthInitialized(true);
+          return;
+        }
+        
+        // 验证令牌有效性
+        if (!isTokenValid()) {
+          console.warn("令牌无效或已过期");
+          
+          // 尝试刷新令牌
+          const refreshed = await refreshTokenIfNeeded();
+          if (!refreshed) {
+            removeToken();
+            setIsLoggedIn(false);
+            setCurrentUser(null);
+            setAuthInitialized(true);
+            return;
+          }
+        }
+        
         setIsLoggedIn(true);
+        
+        // 尝试获取用户信息
         try {
-          // 使用/users/me端点获取用户信息而不是merchants/my
           const userData = await fetchData({
             url: '/api/v1/users/me',
             method: 'GET',
+            showError: false // 不显示错误消息
           });
           
           if (userData) {
             console.log("成功获取用户信息:", userData);
             setCurrentUser(userData);
             
+            // 缓存用户信息
+            localStorage.setItem('current_user', JSON.stringify(userData));
+            
             // 确认是否为商户账号
             if (!userData.merchant_id) {
-              console.warn("当前用户不是商户账号，某些功能可能无法使用");
-              message.warning("请使用商户账号登录以访问完整功能");
+              console.log("当前用户不是商户账号");
+            } else {
+              console.log("当前用户是商户账号，商户ID:", userData.merchant_id);
             }
           }
         } catch (error) {
           console.error('获取用户信息失败:', error);
-          // 认证失败时清除无效token
-          removeToken();
-          setIsLoggedIn(false);
-          setCurrentUser(null);
-          message.error("登录已过期，请重新登录");
+          
+          // 只有在明确是身份验证错误时才清除令牌
+          if (error.response && error.response.status === 401) {
+            removeToken();
+            setIsLoggedIn(false);
+            setCurrentUser(null);
+            message.error("登录已过期，请重新登录");
+          }
         }
-      } else {
-        console.log("未找到登录凭证，请登录");
+      } catch (error) {
+        console.error("认证初始化错误:", error);
+      } finally {
+        setAuthInitialized(true);
       }
     };
 
@@ -70,6 +106,7 @@ export const AuthProvider = ({ children }) => {
           phone: username, // 使用phone字段而不是username
           password,
         },
+        requireAuth: false, // 不需要认证
       });
       
       console.log("登录响应:", response);
@@ -86,22 +123,19 @@ export const AuthProvider = ({ children }) => {
         
         setIsLoggedIn(true);
         
-        // 如果响应中包含用户信息，直接设置
-        if (response.user) {
-          setCurrentUser(response.user);
-        } else {
-          // 否则获取用户信息
-          try {
-            const userData = await fetchData({
-              url: '/api/v1/users/me',
-              method: 'GET',
-            });
-            if (userData) {
-              setCurrentUser(userData);
-            }
-          } catch (userError) {
-            console.error('获取用户信息失败:', userError);
+        // 获取用户信息
+        try {
+          const userData = await fetchData({
+            url: '/api/v1/users/me',
+            method: 'GET',
+          });
+          
+          if (userData) {
+            setCurrentUser(userData);
+            localStorage.setItem('current_user', JSON.stringify(userData));
           }
+        } catch (userError) {
+          console.error('获取用户信息失败:', userError);
         }
         
         message.success('登录成功');
@@ -128,6 +162,9 @@ export const AuthProvider = ({ children }) => {
       fetchData({
         url: '/api/v1/auth/logout',
         method: 'POST',
+        showError: false // 不显示错误
+      }).catch(error => {
+        console.log('登出API调用失败，但不影响本地登出:', error);
       });
     } catch (error) {
       console.error('登出API调用失败:', error);
@@ -135,6 +172,7 @@ export const AuthProvider = ({ children }) => {
     
     // 无论API调用成功与否，清除本地存储
     removeToken();
+    localStorage.removeItem('current_user');
     setIsLoggedIn(false);
     setCurrentUser(null);
     message.success('已退出登录');
@@ -182,37 +220,33 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 检查是否是商户账号
-  const isMerchantAccount = () => {
-    return currentUser && currentUser.merchant_id;
-  };
+  const isMerchant = useCallback(() => {
+    return currentUser && !!currentUser.merchant_id;
+  }, [currentUser]);
 
-  // 手动刷新token
-  const refreshToken = async () => {
+  // 获取商户ID
+  const getMerchantId = useCallback(() => {
+    return currentUser?.merchant_id || null;
+  }, [currentUser]);
+  
+  // 刷新用户信息
+  const refreshUserInfo = async () => {
     try {
-      setLoading(true);
-      const currentToken = getToken();
-      if (!currentToken) {
-        throw new Error("没有可刷新的令牌");
-      }
-      
-      const response = await fetchData({
-        url: '/api/v1/auth/refresh-token',
-        method: 'POST',
-        data: { token: currentToken }
+      const userData = await fetchData({
+        url: '/api/v1/users/me',
+        method: 'GET',
+        showError: false // 不显示错误
       });
       
-      if (response && response.access_token) {
-        setToken(response.access_token, response.expires_in);
-        console.log("刷新token成功");
-        return true;
+      if (userData) {
+        setCurrentUser(userData);
+        localStorage.setItem('current_user', JSON.stringify(userData));
+        return userData;
       }
-      return false;
     } catch (error) {
-      console.error("刷新token失败:", error);
-      return false;
-    } finally {
-      setLoading(false);
+      console.error('刷新用户信息失败:', error);
     }
+    return null;
   };
 
   return (
@@ -227,8 +261,10 @@ export const AuthProvider = ({ children }) => {
         clearError,
         getRememberedCredentials,
         resetPassword,
-        isMerchantAccount,
-        refreshToken
+        isMerchant,
+        getMerchantId,
+        refreshUserInfo,
+        authInitialized
       }}
     >
       {children}

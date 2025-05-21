@@ -1,8 +1,10 @@
 // src/utils/auth.js
 import Cookies from 'js-cookie';
+import axios from 'axios';
 
 const TOKEN_KEY = 'merchant_token';
 const REMEMBER_KEY = 'rememberedCredentials';
+const TOKEN_EXPIRY_KEY = 'merchant_token_expiry';
 
 /**
  * 获取认证令牌 - 同时检查 localStorage 和 Cookies
@@ -20,12 +22,15 @@ export function getToken() {
     console.log("Token存在于localStorage但不在Cookie中，正在同步");
     // 设置cookie，默认会话期间有效
     Cookies.set(TOKEN_KEY, localToken);
+    return localToken;
   } else if (!localToken && cookieToken) {
     console.log("Token存在于Cookie但不在localStorage中，正在同步");
     localStorage.setItem(TOKEN_KEY, cookieToken);
+    return cookieToken;
   } else if (localToken && cookieToken && localToken !== cookieToken) {
     console.log("localStorage和Cookie中的Token不一致，使用localStorage的Token");
     Cookies.set(TOKEN_KEY, localToken);
+    return localToken;
   }
   
   // 返回token，优先使用localStorage中的
@@ -48,6 +53,14 @@ export function setToken(token, expireSeconds = null) {
   // 始终在localStorage中存储
   localStorage.setItem(TOKEN_KEY, token);
   
+  // 存储过期时间（如果有）
+  if (expireSeconds) {
+    const expiryTime = Date.now() + (expireSeconds * 1000);
+    localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+  } else {
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  }
+  
   // 如果有过期时间，也在Cookies中设置
   if (expireSeconds) {
     // 转换为天数
@@ -65,7 +78,124 @@ export function setToken(token, expireSeconds = null) {
 export function removeToken() {
   console.log("移除Token");
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
   Cookies.remove(TOKEN_KEY);
+}
+
+/**
+ * 解析JWT令牌
+ * @param {string} token JWT令牌
+ * @returns {object} 解析后的令牌数据
+ */
+export function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('解析JWT令牌失败:', error);
+    return {};
+  }
+}
+
+/**
+ * 获取令牌过期时间
+ * @returns {number|null} 过期时间戳(毫秒)或null
+ */
+export function getTokenExpiry() {
+  // 从localStorage获取过期时间
+  const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+  if (expiry) {
+    return parseInt(expiry, 10);
+  }
+  
+  // 如果没有存储过期时间，尝试从令牌中获取
+  const token = getToken();
+  if (token) {
+    try {
+      const payload = parseJwt(token);
+      if (payload.exp) {
+        // exp是秒级时间戳，转换为毫秒
+        return payload.exp * 1000;
+      }
+    } catch (error) {
+      console.error('无法从令牌中获取过期时间:', error);
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * 检查令牌是否即将过期
+ * @param {number} thresholdMinutes 阈值(分钟)，默认为5分钟
+ * @returns {boolean} 是否即将过期
+ */
+export function isTokenExpiringSoon(thresholdMinutes = 5) {
+  const expiry = getTokenExpiry();
+  if (!expiry) return false;
+  
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return (expiry - Date.now()) < thresholdMs;
+}
+
+/**
+ * 检查令牌是否已过期
+ * @returns {boolean} 是否已过期
+ */
+export function isTokenExpired() {
+  const expiry = getTokenExpiry();
+  if (!expiry) return false;
+  
+  return Date.now() >= expiry;
+}
+
+/**
+ * 刷新令牌（如果需要）
+ * @returns {Promise<boolean>} 是否刷新成功
+ */
+export async function refreshTokenIfNeeded() {
+  const token = getToken();
+  if (!token) return false;
+  
+  // 如果令牌已过期，直接返回false
+  if (isTokenExpired()) {
+    console.log('令牌已过期，需要重新登录');
+    return false;
+  }
+  
+  // 如果令牌即将过期，则刷新
+  if (isTokenExpiringSoon()) {
+    try {
+      console.log('令牌即将过期，尝试刷新');
+      const response = await axios.post('/api/v1/auth/refresh-token', { token });
+      
+      if (response.data && response.data.access_token) {
+        setToken(
+          response.data.access_token, 
+          response.data.expires_in || 60 * 60 * 24 * 7 // 默认7天
+        );
+        console.log('令牌刷新成功');
+        return true;
+      }
+      
+      console.error('刷新令牌失败: 响应中没有有效的令牌');
+      return false;
+    } catch (error) {
+      console.error('刷新令牌失败:', error);
+      // 如果刷新失败但令牌仍未过期，仍返回true
+      return !isTokenExpired();
+    }
+  }
+  
+  // 令牌有效且不需要刷新
+  return true;
 }
 
 /**
@@ -108,35 +238,79 @@ export function clearRememberedCredentials() {
  * @returns {boolean} 是否已登录
  */
 export function isLoggedIn() {
-  return !!getToken();
+  const token = getToken();
+  return !!token && !isTokenExpired();
 }
 
 /**
  * 检查Token是否有效（非过期）
- * 注意：这只是简单判断，没有验证签名
  * @returns {boolean} 是否有效
  */
 export function isTokenValid() {
   const token = getToken();
   if (!token) return false;
   
+  // 检查是否已过期
+  if (isTokenExpired()) return false;
+  
   try {
-    // JWT token通常有三部分，用.分隔
+    // 解析令牌结构
     const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    
-    // 解析payload部分
-    const payload = JSON.parse(atob(parts[1]));
-    
-    // 检查是否有exp字段，并且没有过期
-    if (payload.exp) {
-      const now = Math.floor(Date.now() / 1000); // 当前时间戳（秒）
-      return payload.exp > now;
-    }
-    
-    return true; // 如果没有exp字段，假设有效
+    return parts.length === 3; // 简单结构验证
   } catch (error) {
     console.error('解析Token失败:', error);
     return false;
   }
 }
+
+/**
+ * 验证令牌有效性（通过API调用）
+ * @returns {Promise<boolean>} 是否有效
+ */
+export async function validateToken() {
+  const token = getToken();
+  if (!token) return false;
+  
+  // 如果令牌已本地检测为过期，直接返回false
+  if (isTokenExpired()) {
+    removeToken();
+    return false;
+  }
+  
+  try {
+    // 调用验证API
+    const response = await axios.post('/api/v1/auth/verify-token', 
+      { token },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    return response.data && response.data.valid === true;
+  } catch (error) {
+    console.error('验证令牌失败:', error);
+    
+    // 如果是401或403，清除令牌
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      removeToken();
+    }
+    
+    return false;
+  }
+}
+
+// 导出所有函数作为默认导出
+export default {
+  getToken,
+  setToken,
+  removeToken,
+  parseJwt,
+  getTokenExpiry,
+  isTokenExpiringSoon,
+  isTokenExpired,
+  refreshTokenIfNeeded,
+  saveRememberedCredentials,
+  getRememberedCredentials,
+  clearRememberedCredentials,
+  isLoggedIn,
+  isTokenValid,
+  validateToken
+};

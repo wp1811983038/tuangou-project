@@ -1,6 +1,11 @@
+// src/utils/request.js
 import axios from 'axios';
-import { getToken, removeToken } from './auth';
+import { 
+  getToken, removeToken, refreshTokenIfNeeded, 
+  isTokenExpired, isTokenValid 
+} from './auth';
 import { message } from 'antd';
+import { useState } from 'react';
 
 // 创建axios实例，根据环境动态设置baseURL
 const instance = axios.create({
@@ -11,19 +16,95 @@ const instance = axios.create({
   },
 });
 
+// 标记用于标识正在刷新令牌的状态，防止多个请求同时触发刷新
+let isRefreshing = false;
+// 等待令牌刷新的请求队列
+let refreshSubscribers = [];
+
+// 将请求添加到等待队列
+const subscribeTokenRefresh = (callback) => {
+  refreshSubscribers.push(callback);
+};
+
+// 执行队列中的所有请求
+const onTokenRefreshed = (token) => {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+};
+
 // 请求拦截器
 instance.interceptors.request.use(
-  (config) => {
-    const token = getToken();
+  async (config) => {
+    // 不处理刷新令牌和验证令牌的请求，避免循环
+    const isAuthRequest = config.url.includes('/auth/') && !config.url.includes('/auth/me');
     
-    // 添加详细日志，但不暴露完整token内容
-    console.log(`准备发送请求到 ${config.url}, Token状态: ${token ? '存在' : '不存在'}`);
+    // 日志记录
+    console.log(`准备发送请求到 ${config.url}`);
     
-    if (token) {
-      // 确保使用正确的格式 - Bearer + 空格 + token
-      config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      console.warn(`请求 ${config.url} 时没有提供认证Token`);
+    if (!isAuthRequest) {
+      const token = getToken();
+      
+      // 检查是否有令牌
+      if (token) {
+        // 如果令牌已过期，但允许自动刷新
+        if (isTokenExpired() && config.allowRefresh !== false) {
+          console.log(`请求 ${config.url} 时令牌已过期，尝试刷新`);
+          
+          // 避免多个请求同时触发刷新
+          if (!isRefreshing) {
+            isRefreshing = true;
+            
+            try {
+              // 尝试刷新令牌
+              const refreshed = await refreshTokenIfNeeded();
+              isRefreshing = false;
+              
+              if (refreshed) {
+                const newToken = getToken();
+                onTokenRefreshed(newToken);
+                config.headers.Authorization = `Bearer ${newToken}`;
+              } else {
+                // 刷新失败，清除令牌
+                removeToken();
+                
+                // 如果需要认证但不强制跳转，则抛出错误
+                if (config.requireAuth !== false && config.noRedirect !== true) {
+                  message.error('登录已过期，请重新登录');
+                  setTimeout(() => {
+                    window.location.href = '/login';
+                  }, 1500);
+                  
+                  return Promise.reject(new Error('登录已过期'));
+                }
+              }
+            } catch (error) {
+              console.error('刷新令牌失败:', error);
+              isRefreshing = false;
+              // 清除令牌
+              removeToken();
+              
+              // 如果需要认证，则抛出错误
+              if (config.requireAuth !== false) {
+                return Promise.reject(new Error('刷新令牌失败'));
+              }
+            }
+          } else {
+            // 如果已经在刷新，将请求加入队列
+            return new Promise((resolve) => {
+              subscribeTokenRefresh((token) => {
+                config.headers.Authorization = `Bearer ${token}`;
+                resolve(config);
+              });
+            });
+          }
+        } else if (!isTokenExpired()) {
+          // 如果令牌未过期，直接使用
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } else if (config.requireAuth !== false) {
+        // 如果请求需要认证但没有令牌，记录警告
+        console.warn(`请求 ${config.url} 时没有有效的认证Token`);
+      }
     }
     
     // 添加处理CORS的头信息
@@ -73,7 +154,7 @@ instance.interceptors.response.use(
           // 清除无效的token
           removeToken();
           // 如果不是登录页面，重定向到登录页
-          if (window.location.pathname !== '/login') {
+          if (window.location.pathname !== '/login' && error.config.noRedirect !== true) {
             message.error('登录已过期，请重新登录');
             setTimeout(() => {
               window.location.href = '/login';
@@ -120,6 +201,12 @@ export const useRequest = () => {
       const token = getToken();
       if (!token && options.requireAuth !== false) {
         console.warn(`发送请求 ${options.url} 时没有有效的认证Token`);
+        
+        // 如果强制要求认证，则直接返回错误
+        if (options.forceAuth === true) {
+          message.error('请先登录');
+          throw new Error('未登录');
+        }
       }
       
       // 发送请求
@@ -128,8 +215,10 @@ export const useRequest = () => {
     } catch (err) {
       console.error('请求失败:', err);
       setError(err.message || '请求失败');
-      // 显示错误消息
-      message.error(err.message || '请求失败');
+      // 显示错误消息，除非明确指定不显示
+      if (options.showError !== false) {
+        message.error(err.message || '请求失败');
+      }
       throw err;
     }
   };
@@ -142,8 +231,44 @@ export const useRequest = () => {
   return { fetchData, error, clearError };
 };
 
-// 添加useState导入
-import { useState } from 'react';
+// 添加验证令牌有效性的方法
+export const verifyToken = async () => {
+  try {
+    const token = getToken();
+    if (!token) return false;
+    
+    const response = await instance.post('/auth/verify-token', { token }, {
+      requireAuth: false // 不需要自动添加认证头
+    });
+    
+    return response && response.valid === true;
+  } catch (error) {
+    console.error('验证令牌失败:', error);
+    return false;
+  }
+};
+
+// 辅助方法：退出登录
+export const logout = async (redirect = true) => {
+  try {
+    // 调用登出API
+    await instance.post('/auth/logout', {}, {
+      noRedirect: true // 防止401时自动跳转
+    });
+  } catch (error) {
+    console.error('登出API调用失败:', error);
+  }
+  
+  // 清除令牌
+  removeToken();
+  
+  // 重定向到登录页
+  if (redirect) {
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 300);
+  }
+};
 
 // 导出实例以便直接使用
 export default instance;

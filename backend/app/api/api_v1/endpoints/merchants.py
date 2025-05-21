@@ -85,30 +85,53 @@ async def create_merchant(
     return merchant
 
 
-# @router.get("/my", response_model=schemas.merchant.MerchantDetail)
-# async def get_my_merchant(
-#     current_user: schemas.user.User = Depends(deps.get_current_active_user),
-#     db: Session = Depends(deps.get_db)
-# ) -> Any:
-#     """获取当前用户的商户信息"""
-#     if not current_user.merchant_id:
-#         raise HTTPException(status_code=404, detail="未找到关联的商户信息")
-    
-#     return await merchant_service.get_merchant_detail(
-#         db=db,
-#         merchant_id=current_user.merchant_id
-#     )
-
+# backend/app/api/api_v1/endpoints/merchants.py
 @router.get("/my", response_model=schemas.merchant.MerchantDetail)
 async def get_my_merchant(
-    current_user: schemas.user.User = Depends(deps.get_current_merchant),
+    current_user: schemas.user.User = Depends(deps.get_current_active_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """获取当前商户资料"""
+    # 检查用户是否有关联的商户ID
+    if not current_user.merchant_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="用户未关联商户账号"
+        )
+    
+    # 获取商户信息并添加详细错误处理
+    merchant = db.query(Merchant).filter(Merchant.id == current_user.merchant_id).first()
+    if not merchant:
+        # 记录异常情况，便于排查
+        print(f"错误：用户ID={current_user.id}关联了不存在的商户ID={current_user.merchant_id}")
+        
+        # 更新用户记录，清除无效的商户关联
+        current_user.merchant_id = None
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="关联的商户信息不存在，已清除无效关联"
+        )
+    
+    # 检查商户状态
+    if merchant.status != 1:  # 假设1是正常状态
+        status_messages = {
+            0: "商户正在审核中，暂时无法访问",
+            2: "商户已被禁用，请联系平台管理员"
+        }
+        
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=status_messages.get(merchant.status, "商户状态异常，无法访问")
+        )
+    
     return await merchant_service.get_merchant_detail(
         db=db,
         merchant_id=current_user.merchant_id
     )
+
+
 
 #商户端更新
 @router.put("/my", response_model=schemas.merchant.Merchant)
