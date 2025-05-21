@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react';
 import axios from 'axios';
-import { getToken } from './auth';
+import { getToken, removeToken } from './auth';
 import { message } from 'antd';
 
 // 创建axios实例，根据环境动态设置baseURL
@@ -16,13 +15,19 @@ const instance = axios.create({
 instance.interceptors.request.use(
   (config) => {
     const token = getToken();
+    
+    // 添加详细日志，但不暴露完整token内容
+    console.log(`准备发送请求到 ${config.url}, Token状态: ${token ? '存在' : '不存在'}`);
+    
     if (token) {
+      // 确保使用正确的格式 - Bearer + 空格 + token
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn(`请求 ${config.url} 时没有提供认证Token`);
     }
     
     // 添加处理CORS的头信息
     config.headers['X-Requested-With'] = 'XMLHttpRequest';
-    config.headers['Access-Control-Allow-Origin'] = '*';
     
     return config;
   },
@@ -65,13 +70,25 @@ instance.interceptors.response.use(
           break;
         case 401:
           errorMessage = '未授权，请重新登录';
-          // 可以在这里添加重定向到登录页面的逻辑
+          // 清除无效的token
+          removeToken();
+          // 如果不是登录页面，重定向到登录页
+          if (window.location.pathname !== '/login') {
+            message.error('登录已过期，请重新登录');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1500);
+          }
           break;
         case 403:
           errorMessage = '无权访问';
           break;
         case 404:
           errorMessage = '请求的资源不存在';
+          break;
+        case 422:
+          errorMessage = data.message || data.detail || '请求数据验证失败';
+          console.error('422错误详情:', data);
           break;
         case 500:
           errorMessage = '服务器错误，请稍后再试';
@@ -96,9 +113,15 @@ export const useRequest = () => {
   const [error, setError] = useState(null);
 
   // 请求数据的方法
-  const fetchData = useCallback(async (options) => {
+  const fetchData = async (options) => {
     try {
       setError(null);
+      // 请求前检查token
+      const token = getToken();
+      if (!token && options.requireAuth !== false) {
+        console.warn(`发送请求 ${options.url} 时没有有效的认证Token`);
+      }
+      
       // 发送请求
       const response = await instance(options);
       return response;
@@ -109,15 +132,18 @@ export const useRequest = () => {
       message.error(err.message || '请求失败');
       throw err;
     }
-  }, []);
+  };
 
   // 清除错误
-  const clearError = useCallback(() => {
+  const clearError = () => {
     setError(null);
-  }, []);
+  };
 
   return { fetchData, error, clearError };
 };
+
+// 添加useState导入
+import { useState } from 'react';
 
 // 导出实例以便直接使用
 export default instance;

@@ -137,14 +137,17 @@ def get_current_active_user(
     return current_user
 
 
-def get_current_merchant(
+# backend/app/api/deps.py
+async def get_current_merchant(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)  # 添加这个参数
+    db: Session = Depends(get_db)
 ) -> User:
     """获取当前商户用户"""
+    # 检查用户是否有关联的商户ID
     if not current_user.merchant_id:
         raise HTTPException(status_code=403, detail="需要商户权限")
     
+    # 验证商户存在
     merchant = db.query(Merchant).filter(
         Merchant.id == current_user.merchant_id
     ).first()

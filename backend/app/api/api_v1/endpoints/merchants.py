@@ -84,6 +84,50 @@ async def create_merchant(
     )
     return merchant
 
+
+# @router.get("/my", response_model=schemas.merchant.MerchantDetail)
+# async def get_my_merchant(
+#     current_user: schemas.user.User = Depends(deps.get_current_active_user),
+#     db: Session = Depends(deps.get_db)
+# ) -> Any:
+#     """获取当前用户的商户信息"""
+#     if not current_user.merchant_id:
+#         raise HTTPException(status_code=404, detail="未找到关联的商户信息")
+    
+#     return await merchant_service.get_merchant_detail(
+#         db=db,
+#         merchant_id=current_user.merchant_id
+#     )
+
+@router.get("/my", response_model=schemas.merchant.MerchantDetail)
+async def get_my_merchant(
+    current_user: schemas.user.User = Depends(deps.get_current_merchant),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """获取当前商户资料"""
+    return await merchant_service.get_merchant_detail(
+        db=db,
+        merchant_id=current_user.merchant_id
+    )
+
+#商户端更新
+@router.put("/my", response_model=schemas.merchant.Merchant)
+async def update_current_merchant(
+    merchant_data: schemas.merchant.MerchantUpdate,
+    current_user: schemas.user.User = Depends(deps.get_current_merchant),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    更新当前登录商户的信息
+    """
+    return await merchant_service.update_merchant(
+        db=db,
+        merchant_id=current_user.merchant_id,
+        merchant_data=merchant_data,
+        user_id=current_user.id
+    )
+
+
 #管理端更新
 @router.put("/{merchant_id}", response_model=schemas.merchant.Merchant)
 async def update_merchant(
@@ -108,22 +152,6 @@ async def update_merchant(
         merchant_data=merchant_data
     )
 
-#商户端更新
-@router.put("/my", response_model=schemas.merchant.Merchant)
-async def update_merchant(
-    merchant_data: schemas.merchant.MerchantUpdate,
-    current_user: schemas.user.User = Depends(deps.get_current_merchant),
-    db: Session = Depends(deps.get_db)
-) -> Any:
-    """
-    更新商户信息
-    """
-    return await merchant_service.update_merchant(
-        db=db,
-        merchant_id=current_user.merchant_id,
-        merchant_data=merchant_data,
-        user_id=current_user.id
-    )
 
 
 # 添加导入

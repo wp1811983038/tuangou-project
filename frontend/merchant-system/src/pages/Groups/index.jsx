@@ -4,7 +4,7 @@ import {
   Card, Table, Button, Input, Space, Tag, Tooltip, Popconfirm, 
   message, Select, Row, Col, Badge, Image, Progress, Statistic 
 } from 'antd';
-import { 
+import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   SearchOutlined, ReloadOutlined, TeamOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
@@ -33,9 +33,9 @@ const GroupList = () => {
   });
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [formVisible, setFormVisible] = useState(false);
-  
+
   const { fetchData } = useRequest();
-  
+
   // 加载商品列表
   const loadProducts = useCallback(async () => {
     try {
@@ -51,7 +51,7 @@ const GroupList = () => {
       message.error('加载商品列表失败');
     }
   }, [fetchData]);
-  
+
   // 加载团购列表
   const loadGroups = useCallback(async (params = {}) => {
     setLoading(true);
@@ -62,22 +62,22 @@ const GroupList = () => {
         ...searchParams,
         ...params
       };
-      
+
       // 移除未定义的参数
-      Object.keys(queryParams).forEach(key => 
+      Object.keys(queryParams).forEach(key =>
         queryParams[key] === undefined && delete queryParams[key]
       );
-      
+
       // 构建查询字符串
       const queryString = Object.keys(queryParams)
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
-      
+
       const res = await fetchData({
         url: `/api/v1/groups/merchant/list?${queryString}`,
         method: 'GET'
       });
-      
+
       if (res?.data) {
         setGroupList(res.data.items || []);
         setPagination({
@@ -94,13 +94,13 @@ const GroupList = () => {
       setLoading(false);
     }
   }, [fetchData, pagination, searchParams]);
-  
+
   // 初始加载
   useEffect(() => {
     loadProducts();
     loadGroups();
   }, [loadProducts, loadGroups]);
-  
+
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {
     setPagination(pagination);
@@ -111,13 +111,13 @@ const GroupList = () => {
       sort_order: sorter.order === 'descend' ? 'desc' : 'asc'
     });
   };
-  
+
   // 处理搜索
   const handleSearch = () => {
     setPagination({ ...pagination, current: 1 });
     loadGroups({ page: 1 });
   };
-  
+
   // 处理重置搜索
   const handleReset = () => {
     setSearchParams({
@@ -126,26 +126,26 @@ const GroupList = () => {
       status: undefined
     });
     setPagination({ ...pagination, current: 1 });
-    loadGroups({ 
-      page: 1, 
+    loadGroups({
+      page: 1,
       keyword: '',
       product_id: undefined,
       status: undefined
     });
   };
-  
+
   // 处理新增团购
   const handleAddGroup = () => {
     setSelectedGroup(null);
     setFormVisible(true);
   };
-  
+
   // 处理编辑团购
   const handleEditGroup = (record) => {
     setSelectedGroup(record);
     setFormVisible(true);
   };
-  
+
   // 处理删除团购
   const handleDeleteGroup = async (id) => {
     try {
@@ -160,7 +160,7 @@ const GroupList = () => {
       message.error('删除团购失败');
     }
   };
-  
+
   // 处理更新团购状态
   const handleUpdateStatus = async (id, status) => {
     try {
@@ -176,7 +176,7 @@ const GroupList = () => {
       message.error('更新团购状态失败');
     }
   };
-  
+
   // 处理表单提交
   const handleFormSubmit = async (values) => {
     try {
@@ -204,7 +204,7 @@ const GroupList = () => {
       message.error('保存团购失败');
     }
   };
-  
+
   // 获取团购状态
   const getGroupStatus = (status, end_time, current_participants, min_participants) => {
     // 状态: 0-未开始, 1-进行中, 2-已成功, 3-已失败
@@ -213,7 +213,7 @@ const GroupList = () => {
     } else if (status === 1) {
       const isExpired = moment(end_time).isBefore(moment());
       if (isExpired) {
-        return current_participants >= min_participants 
+        return current_participants >= min_participants
           ? { text: '已成功', color: 'success' }
           : { text: '已失败', color: 'error' };
       }
@@ -225,7 +225,7 @@ const GroupList = () => {
     }
     return { text: '未知', color: 'default' };
   };
-  
+
   // 表格列配置
   const columns = [
     {
@@ -288,7 +288,7 @@ const GroupList = () => {
           Math.round((current_participants / min_participants) * 100),
           100
         );
-        
+
         return (
           <div>
             <Progress
@@ -314,17 +314,18 @@ const GroupList = () => {
         const endTime = moment(record.end_time).format('YYYY-MM-DD');
         const isExpired = moment(record.end_time).isBefore(moment());
         const remainingTime = moment(record.end_time).valueOf() - moment().valueOf();
-        
+
         return (
           <div>
             <div>{startTime} 至 {endTime}</div>
             {!isExpired && remainingTime > 0 && (
               <div className="countdown">
-                <ClockCircleOutlined /> 剩余: 
-                <Countdown 
-                  value={record.end_time} 
-                  format="D天H时m分" 
-                  valueStyle={{fontSize: '12px', marginLeft: '4px'}}
+                <ClockCircleOutlined /> 剩余:
+                <Statistic.Timer
+                  type="countdown"
+                  value={record.end_time}
+                  format="D天H时m分"
+                  valueStyle={{ fontSize: '12px', marginLeft: '4px' }}
                 />
               </div>
             )}
@@ -342,14 +343,14 @@ const GroupList = () => {
       align: 'center',
       render: (status, record) => {
         const statusInfo = getGroupStatus(
-          status, 
+          status,
           record.end_time,
           record.current_participants,
           record.min_participants
         );
         return (
-          <Badge 
-            status={statusInfo.color} 
+          <Badge
+            status={statusInfo.color}
             text={statusInfo.text}
           />
         );
@@ -362,54 +363,54 @@ const GroupList = () => {
       render: (_, record) => {
         const isExpired = moment(record.end_time).isBefore(moment());
         const statusInfo = getGroupStatus(
-          record.status, 
+          record.status,
           record.end_time,
           record.current_participants,
           record.min_participants
         );
-        
+
         return (
           <Space size="small">
             <Tooltip title="查看详情">
-              <Button 
-                type="text" 
-                size="small" 
-                icon={<EyeOutlined />} 
-                onClick={() => {}}
+              <Button
+                type="text"
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => { }}
               />
             </Tooltip>
-            
+
             {record.status === 1 && !isExpired && (
               <Tooltip title="编辑团购">
-                <Button 
-                  type="text" 
-                  size="small" 
-                  icon={<EditOutlined />} 
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
                   onClick={() => handleEditGroup(record)}
                 />
               </Tooltip>
             )}
-            
+
             {record.status === 1 && !isExpired && (
               <Tooltip title="手动结束">
                 <Popconfirm
                   title="确定要手动结束该团购吗？"
-                  onConfirm={() => handleUpdateStatus(record.id, 
+                  onConfirm={() => handleUpdateStatus(record.id,
                     record.current_participants >= record.min_participants ? 2 : 3
                   )}
                   okText="确定"
                   cancelText="取消"
                 >
-                  <Button 
-                    type="text" 
-                    size="small" 
+                  <Button
+                    type="text"
+                    size="small"
                     danger
-                    icon={<ClockCircleOutlined />} 
+                    icon={<ClockCircleOutlined />}
                   />
                 </Popconfirm>
               </Tooltip>
             )}
-            
+
             {record.status !== 1 && (
               <Tooltip title="删除团购">
                 <Popconfirm
@@ -418,11 +419,11 @@ const GroupList = () => {
                   okText="确定"
                   cancelText="取消"
                 >
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    danger 
-                    icon={<DeleteOutlined />} 
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
                   />
                 </Popconfirm>
               </Tooltip>
@@ -432,7 +433,7 @@ const GroupList = () => {
       },
     },
   ];
-  
+
   return (
     <div className="group-list-page">
       <Card className="search-card">
@@ -485,13 +486,13 @@ const GroupList = () => {
           </Col>
         </Row>
       </Card>
-      
-      <Card 
-        title="团购活动列表" 
+
+      <Card
+        title="团购活动列表"
         className="group-table-card"
         extra={
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             icon={<PlusOutlined />}
             onClick={handleAddGroup}
           >
@@ -509,7 +510,7 @@ const GroupList = () => {
           scroll={{ x: 1200 }}
         />
       </Card>
-      
+
       {formVisible && (
         <GroupForm
           visible={formVisible}

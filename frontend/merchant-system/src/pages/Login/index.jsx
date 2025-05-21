@@ -10,7 +10,7 @@ import './index.less';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, login, loading, error, clearAuthError, getRememberedCredentials } = useAuth();
+  const { isLoggedIn, login, loading, error, clearError, getRememberedCredentials } = useAuth();
   const [form] = Form.useForm();
   const [remember, setRemember] = useState(false);
 
@@ -25,9 +25,9 @@ const LoginPage = () => {
   useEffect(() => {
     if (error) {
       message.error(error);
-      clearAuthError();
+      clearError(); // 修正：使用正确的函数名
     }
-  }, [error, clearAuthError]);
+  }, [error, clearError]);
 
   // 初始化表单数据
   useEffect(() => {

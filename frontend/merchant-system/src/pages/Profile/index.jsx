@@ -11,13 +11,13 @@ import {
   SaveOutlined, PlusOutlined, LoadingOutlined, LockOutlined
 } from '@ant-design/icons';
 import { useRequest } from '../../hooks/useRequest';
+import { useAuth } from '../../hooks/useAuth';
 import './index.less';
 import { List } from 'antd';
 
 const { Option } = Select;
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
 const { Step } = Steps;
 
 const Profile = () => {
@@ -35,9 +35,14 @@ const Profile = () => {
   const [radiusForm] = Form.useForm();
   
   const { fetchData } = useRequest();
+  const { currentUser } = useAuth();
   
   // 加载商户信息
   useEffect(() => {
+    // 添加认证状态检查日志
+    console.log("当前认证状态:", localStorage.getItem('merchant_token'));
+    console.log("当前用户信息:", currentUser);
+    
     const loadMerchantInfo = async () => {
       setLoading(true);
       try {
@@ -89,7 +94,7 @@ const Profile = () => {
     };
     
     loadMerchantInfo();
-  }, [fetchData, form]);
+  }, [fetchData, form, currentUser]);
   
   // 保存商户信息
   const handleSave = async () => {
@@ -259,6 +264,337 @@ const Profile = () => {
     );
   }
   
+  // 定义Tabs的items配置
+  const tabItems = [
+    {
+      key: 'basic',
+      label: (
+        <span>
+          <UserOutlined />
+          基本信息
+        </span>
+      ),
+      children: (
+        <Card>
+          <Form
+            form={form}
+            layout="vertical"
+            scrollToFirstError
+          >
+            <Title level={5}>商户基本信息</Title>
+            
+            <Row gutter={24}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="name"
+                  label="商户名称"
+                  rules={[{ required: true, message: '请输入商户名称' }]}
+                >
+                  <Input placeholder="请输入商户名称" prefix={<ShopOutlined />} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="contact_name"
+                  label="联系人"
+                  rules={[{ required: true, message: '请输入联系人姓名' }]}
+                >
+                  <Input placeholder="请输入联系人姓名" prefix={<UserOutlined />} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="contact_phone"
+                  label="联系电话"
+                  rules={[
+                    { required: true, message: '请输入联系电话' },
+                    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }
+                  ]}
+                >
+                  <Input placeholder="请输入联系电话" prefix={<PhoneOutlined />} />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Row gutter={24}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="category_ids"
+                  label="商户分类"
+                  rules={[{ required: true, message: '请选择商户分类' }]}
+                >
+                  <Select
+                    placeholder="请选择商户分类"
+                    mode="multiple"
+                    optionFilterProp="children"
+                  >
+                    {categories.map(cat => (
+                      <Option key={cat.id} value={cat.id}>{cat.name}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="business_hours"
+                  label="营业时间"
+                >
+                  <Input placeholder="如: 09:00-22:00" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="license_number"
+                  label="营业执照号"
+                >
+                  <Input placeholder="请输入营业执照号" prefix={<BankOutlined />} />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Row gutter={24}>
+              <Col xs={24}>
+                <Form.Item
+                  name="description"
+                  label="商户简介"
+                >
+                  <TextArea
+                    placeholder="请输入商户简介"
+                    rows={4}
+                    showCount
+                    maxLength={500}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Divider />
+            
+            <Title level={5}>商户图片</Title>
+            
+            <Row gutter={24}>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  label="商户Logo"
+                  extra="建议尺寸: 200x200像素"
+                >
+                  <Upload
+                    name="logo"
+                    listType="picture-card"
+                    showUploadList={false}
+                    beforeUpload={(file) => {
+                      handleUpload(file, 'logo');
+                      return false;
+                    }}
+                  >
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="商户Logo" style={{ width: '100%' }} />
+                    ) : (
+                      uploadButton
+                    )}
+                  </Upload>
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  label="商户封面"
+                  extra="建议尺寸: 750x300像素"
+                >
+                  <Upload
+                    name="cover"
+                    listType="picture-card"
+                    showUploadList={false}
+                    beforeUpload={(file) => {
+                      handleUpload(file, 'cover');
+                      return false;
+                    }}
+                  >
+                    {coverUrl ? (
+                      <img src={coverUrl} alt="商户封面" style={{ width: '100%' }} />
+                    ) : (
+                      uploadButton
+                    )}
+                  </Upload>
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  label="营业执照"
+                  extra="请上传清晰的营业执照照片"
+                >
+                  <Upload
+                    name="license"
+                    listType="picture-card"
+                    showUploadList={false}
+                    beforeUpload={(file) => {
+                      handleUpload(file, 'license');
+                      return false;
+                    }}
+                  >
+                    {licenseUrl ? (
+                      <img src={licenseUrl} alt="营业执照" style={{ width: '100%' }} />
+                    ) : (
+                      uploadButton
+                    )}
+                  </Upload>
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Divider />
+            
+            <Title level={5}>商户地址与服务范围</Title>
+            
+            <Row gutter={24}>
+              <Col xs={24} md={24} lg={16}>
+                <Row gutter={16}>
+                  <Col xs={24} md={8}>
+                    <Form.Item
+                      name="province"
+                      label="省份"
+                      rules={[{ required: true, message: '请输入省份' }]}
+                    >
+                      <Input placeholder="省份" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item
+                      name="city"
+                      label="城市"
+                      rules={[{ required: true, message: '请输入城市' }]}
+                    >
+                      <Input placeholder="城市" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item
+                      name="district"
+                      label="区县"
+                      rules={[{ required: true, message: '请输入区县' }]}
+                    >
+                      <Input placeholder="区县" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                
+                <Form.Item
+                  name="address"
+                  label="详细地址"
+                  rules={[{ required: true, message: '请输入详细地址' }]}
+                >
+                  <Input placeholder="详细地址" prefix={<EnvironmentOutlined />} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={24} lg={8}>
+                <Form.Item
+                  name="service_radius"
+                  label="服务半径(公里)"
+                  rules={[{ required: true, message: '请设置服务半径' }]}
+                  tooltip="商户可提供服务的最大距离范围"
+                >
+                  <InputNumber
+                    min={0.5}
+                    max={50}
+                    precision={1}
+                    style={{ width: '100%' }}
+                    placeholder="请输入服务半径"
+                    addonAfter={
+                      <Button 
+                        type="link" 
+                        size="small"
+                        onClick={() => setServiceRadiusModalVisible(true)}
+                      >
+                        配置
+                      </Button>
+                    }
+                  />
+                </Form.Item>
+                <div className="radius-note">
+                  <Text type="secondary">
+                    * 服务半径决定您的商品能被多远范围内的用户看到
+                  </Text>
+                </div>
+              </Col>
+            </Row>
+            
+            <Form.Item>
+              <div className="form-actions">
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  loading={saveLoading}
+                  onClick={handleSave}
+                >
+                  保存修改
+                </Button>
+              </div>
+            </Form.Item>
+          </Form>
+        </Card>
+      )
+    },
+    {
+      key: 'security',
+      label: (
+        <span>
+          <LockOutlined />
+          安全设置
+        </span>
+      ),
+      children: (
+        <Card>
+          <div className="security-settings">
+            <List
+              itemLayout="horizontal"
+              dataSource={[
+                {
+                  title: '账号密码',
+                  description: '定期修改密码可以提高账号安全性',
+                  action: (
+                    <Button
+                      type="primary"
+                      onClick={() => setPasswordModalVisible(true)}
+                    >
+                      修改密码
+                    </Button>
+                  )
+                },
+                {
+                  title: '绑定手机',
+                  description: `当前绑定手机: ${merchantData?.contact_phone || '未绑定'}`,
+                  action: (
+                    <Button>
+                      更换手机
+                    </Button>
+                  )
+                },
+                {
+                  title: '登录设备管理',
+                  description: '查看您的账号登录设备',
+                  action: (
+                    <Button>
+                      查看设备
+                    </Button>
+                  )
+                }
+              ]}
+              renderItem={(item) => (
+                <List.Item
+                  actions={[item.action]}
+                >
+                  <List.Item.Meta
+                    title={item.title}
+                    description={item.description}
+                  />
+                </List.Item>
+              )}
+            />
+          </div>
+        </Card>
+      )
+    }
+  ];
+  
   return (
     <div className="merchant-profile">
       <Card className="profile-header">
@@ -272,334 +608,8 @@ const Profile = () => {
       </Card>
       
       <div className="profile-content">
-        <Tabs defaultActiveKey="basic">
-          <TabPane
-            tab={
-              <span>
-                <UserOutlined />
-                基本信息
-              </span>
-            }
-            key="basic"
-          >
-            <Card>
-              <Form
-                form={form}
-                layout="vertical"
-                scrollToFirstError
-              >
-                <Title level={5}>商户基本信息</Title>
-                
-                <Row gutter={24}>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="name"
-                      label="商户名称"
-                      rules={[{ required: true, message: '请输入商户名称' }]}
-                    >
-                      <Input placeholder="请输入商户名称" prefix={<ShopOutlined />} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="contact_name"
-                      label="联系人"
-                      rules={[{ required: true, message: '请输入联系人姓名' }]}
-                    >
-                      <Input placeholder="请输入联系人姓名" prefix={<UserOutlined />} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="contact_phone"
-                      label="联系电话"
-                      rules={[
-                        { required: true, message: '请输入联系电话' },
-                        { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }
-                      ]}
-                    >
-                      <Input placeholder="请输入联系电话" prefix={<PhoneOutlined />} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                
-                <Row gutter={24}>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="category_ids"
-                      label="商户分类"
-                      rules={[{ required: true, message: '请选择商户分类' }]}
-                    >
-                      <Select
-                        placeholder="请选择商户分类"
-                        mode="multiple"
-                        optionFilterProp="children"
-                      >
-                        {categories.map(cat => (
-                          <Option key={cat.id} value={cat.id}>{cat.name}</Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="business_hours"
-                      label="营业时间"
-                    >
-                      <Input placeholder="如: 09:00-22:00" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item
-                      name="license_number"
-                      label="营业执照号"
-                    >
-                      <Input placeholder="请输入营业执照号" prefix={<BankOutlined />} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                
-                <Row gutter={24}>
-                  <Col xs={24}>
-                    <Form.Item
-                      name="description"
-                      label="商户简介"
-                    >
-                      <TextArea
-                        placeholder="请输入商户简介"
-                        rows={4}
-                        showCount
-                        maxLength={500}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                
-                <Divider />
-                
-                <Title level={5}>商户图片</Title>
-                
-                <Row gutter={24}>
-                  <Col xs={24} md={8}>
-                    <Form.Item
-                      label="商户Logo"
-                      extra="建议尺寸: 200x200像素"
-                    >
-                      <Upload
-                        name="logo"
-                        listType="picture-card"
-                        showUploadList={false}
-                        beforeUpload={(file) => {
-                          handleUpload(file, 'logo');
-                          return false;
-                        }}
-                      >
-                        {logoUrl ? (
-                          <img src={logoUrl} alt="商户Logo" style={{ width: '100%' }} />
-                        ) : (
-                          uploadButton
-                        )}
-                      </Upload>
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item
-                      label="商户封面"
-                      extra="建议尺寸: 750x300像素"
-                    >
-                      <Upload
-                        name="cover"
-                        listType="picture-card"
-                        showUploadList={false}
-                        beforeUpload={(file) => {
-                          handleUpload(file, 'cover');
-                          return false;
-                        }}
-                      >
-                        {coverUrl ? (
-                          <img src={coverUrl} alt="商户封面" style={{ width: '100%' }} />
-                        ) : (
-                          uploadButton
-                        )}
-                      </Upload>
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item
-                      label="营业执照"
-                      extra="请上传清晰的营业执照照片"
-                    >
-                      <Upload
-                        name="license"
-                        listType="picture-card"
-                        showUploadList={false}
-                        beforeUpload={(file) => {
-                          handleUpload(file, 'license');
-                          return false;
-                        }}
-                      >
-                        {licenseUrl ? (
-                          <img src={licenseUrl} alt="营业执照" style={{ width: '100%' }} />
-                        ) : (
-                          uploadButton
-                        )}
-                      </Upload>
-                    </Form.Item>
-                  </Col>
-                </Row>
-                
-                <Divider />
-                
-                <Title level={5}>商户地址与服务范围</Title>
-                
-                <Row gutter={24}>
-                  <Col xs={24} md={24} lg={16}>
-                    <Row gutter={16}>
-                      <Col xs={24} md={8}>
-                        <Form.Item
-                          name="province"
-                          label="省份"
-                          rules={[{ required: true, message: '请输入省份' }]}
-                        >
-                          <Input placeholder="省份" />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Form.Item
-                          name="city"
-                          label="城市"
-                          rules={[{ required: true, message: '请输入城市' }]}
-                        >
-                          <Input placeholder="城市" />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} md={8}>
-                        <Form.Item
-                          name="district"
-                          label="区县"
-                          rules={[{ required: true, message: '请输入区县' }]}
-                        >
-                          <Input placeholder="区县" />
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                    
-                    <Form.Item
-                      name="address"
-                      label="详细地址"
-                      rules={[{ required: true, message: '请输入详细地址' }]}
-                    >
-                      <Input placeholder="详细地址" prefix={<EnvironmentOutlined />} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={24} lg={8}>
-                    <Form.Item
-                      name="service_radius"
-                      label="服务半径(公里)"
-                      rules={[{ required: true, message: '请设置服务半径' }]}
-                      tooltip="商户可提供服务的最大距离范围"
-                    >
-                      <InputNumber
-                        min={0.5}
-                        max={50}
-                        precision={1}
-                        style={{ width: '100%' }}
-                        placeholder="请输入服务半径"
-                        addonAfter={
-                          <Button 
-                            type="link" 
-                            size="small"
-                            onClick={() => setServiceRadiusModalVisible(true)}
-                          >
-                            配置
-                          </Button>
-                        }
-                      />
-                    </Form.Item>
-                    <div className="radius-note">
-                      <Text type="secondary">
-                        * 服务半径决定您的商品能被多远范围内的用户看到
-                      </Text>
-                    </div>
-                  </Col>
-                </Row>
-                
-                <Form.Item>
-                  <div className="form-actions">
-                    <Button
-                      type="primary"
-                      icon={<SaveOutlined />}
-                      loading={saveLoading}
-                      onClick={handleSave}
-                    >
-                      保存修改
-                    </Button>
-                  </div>
-                </Form.Item>
-              </Form>
-            </Card>
-          </TabPane>
-          
-          <TabPane
-            tab={
-              <span>
-                <LockOutlined />
-                安全设置
-              </span>
-            }
-            key="security"
-          >
-            <Card>
-              <div className="security-settings">
-                <List
-                  itemLayout="horizontal"
-                  dataSource={[
-                    {
-                      title: '账号密码',
-                      description: '定期修改密码可以提高账号安全性',
-                      action: (
-                        <Button
-                          type="primary"
-                          onClick={() => setPasswordModalVisible(true)}
-                        >
-                          修改密码
-                        </Button>
-                      )
-                    },
-                    {
-                      title: '绑定手机',
-                      description: `当前绑定手机: ${merchantData?.contact_phone || '未绑定'}`,
-                      action: (
-                        <Button>
-                          更换手机
-                        </Button>
-                      )
-                    },
-                    {
-                      title: '登录设备管理',
-                      description: '查看您的账号登录设备',
-                      action: (
-                        <Button>
-                          查看设备
-                        </Button>
-                      )
-                    }
-                  ]}
-                  renderItem={(item) => (
-                    <List.Item
-                      actions={[item.action]}
-                    >
-                      <List.Item.Meta
-                        title={item.title}
-                        description={item.description}
-                      />
-                    </List.Item>
-                  )}
-                />
-              </div>
-            </Card>
-          </TabPane>
-        </Tabs>
+        {/* 使用修改后的 Tabs 组件 */}
+        <Tabs defaultActiveKey="basic" items={tabItems} />
       </div>
       
       {/* 修改密码弹窗 */}

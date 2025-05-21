@@ -22,11 +22,13 @@ async def login(
     """
     获取OAuth2访问令牌（用于API测试）
     """
-    user = user_service.authenticate_user(
+    # 使用 authenticate_by_phone 而不是 authenticate_user
+    user = await user_service.authenticate_by_phone(
         db=db,
-        username=form_data.username,
+        phone=form_data.username,  # 使用用户名作为手机号
         password=form_data.password
     )
+    
     if not user:
         raise HTTPException(status_code=400, detail="用户名或密码错误")
     

@@ -60,6 +60,70 @@ const MerchantLayout = () => {
     return () => clearTimeout(timer);
   }, []);
   
+  // 用户菜单项定义
+  const userMenuItems = [
+    {
+      key: 'profile',
+      label: (
+        <span onClick={() => navigate('/profile')}>
+          <UserOutlined /> 商户资料
+        </span>
+      )
+    },
+    {
+      type: 'divider'
+    },
+    {
+      key: 'logout',
+      label: (
+        <span onClick={logout}>
+          <LogoutOutlined /> 退出登录
+        </span>
+      )
+    }
+  ];
+  
+  // 通知菜单项定义
+  const notificationMenuItems = [
+    {
+      key: 'notification1',
+      label: (
+        <div className="notification-item">
+          <div className="notification-title">新订单通知</div>
+          <div className="notification-time">10分钟前</div>
+          <div className="notification-content">您有一个新的订单待处理</div>
+        </div>
+      )
+    },
+    {
+      key: 'notification2',
+      label: (
+        <div className="notification-item">
+          <div className="notification-title">团购成功</div>
+          <div className="notification-time">1小时前</div>
+          <div className="notification-content">XXX团购活动已达成</div>
+        </div>
+      )
+    },
+    {
+      key: 'notification3',
+      label: (
+        <div className="notification-item">
+          <div className="notification-title">新评价</div>
+          <div className="notification-time">2小时前</div>
+          <div className="notification-content">您有一条新的评价待回复</div>
+        </div>
+      )
+    },
+    {
+      type: 'divider'
+    },
+    {
+      key: 'all',
+      label: <a href="/notifications">查看全部通知</a>
+    }
+  ];
+  
   // 菜单项配置
   const menuItems = [
     {
@@ -150,50 +214,6 @@ const MerchantLayout = () => {
   
   const { selectedKeys, openKeys } = getSelectedKeys();
   
-  // 用户菜单
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile" icon={<UserOutlined />} onClick={() => navigate('/profile')}>
-        商户资料
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={logout}>
-        退出登录
-      </Menu.Item>
-    </Menu>
-  );
-  
-  // 通知菜单
-  const notificationMenu = (
-    <Menu>
-      <Menu.Item key="notification1">
-        <div className="notification-item">
-          <div className="notification-title">新订单通知</div>
-          <div className="notification-time">10分钟前</div>
-          <div className="notification-content">您有一个新的订单待处理</div>
-        </div>
-      </Menu.Item>
-      <Menu.Item key="notification2">
-        <div className="notification-item">
-          <div className="notification-title">团购成功</div>
-          <div className="notification-time">1小时前</div>
-          <div className="notification-content">XXX团购活动已达成</div>
-        </div>
-      </Menu.Item>
-      <Menu.Item key="notification3">
-        <div className="notification-item">
-          <div className="notification-title">新评价</div>
-          <div className="notification-time">2小时前</div>
-          <div className="notification-content">您有一条新的评价待回复</div>
-        </div>
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="all">
-        <a href="/notifications">查看全部通知</a>
-      </Menu.Item>
-    </Menu>
-  );
-  
   // 侧边栏渲染
   const siderMenu = (
     <Menu
@@ -273,7 +293,7 @@ const MerchantLayout = () => {
           
           <div className="header-right">
             <Dropdown
-              overlay={notificationMenu}
+              menu={{ items: notificationMenuItems }}
               trigger={['click']}
               placement="bottomRight"
             >
@@ -282,7 +302,11 @@ const MerchantLayout = () => {
               </Badge>
             </Dropdown>
             
-            <Dropdown overlay={userMenu} trigger={['click']} placement="bottomRight">
+            <Dropdown 
+              menu={{ items: userMenuItems }} 
+              trigger={['click']} 
+              placement="bottomRight"
+            >
               <div className="user-info">
                 <Avatar
                   size="small"

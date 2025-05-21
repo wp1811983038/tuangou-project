@@ -92,10 +92,10 @@ const ProductList = () => {
   }, [fetchData, pagination, searchParams]);
   
   // 初始加载
-  useEffect(() => {
-    loadCategories();
-    loadProducts();
-  }, [loadCategories, loadProducts]);
+useEffect(() => {
+  loadProducts();
+  loadCategories();
+}, []); 
   
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {
