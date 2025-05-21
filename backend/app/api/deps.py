@@ -137,7 +137,7 @@ def get_current_active_user(
     return current_user
 
 
-# backend/app/api/deps.py
+
 async def get_current_merchant(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
