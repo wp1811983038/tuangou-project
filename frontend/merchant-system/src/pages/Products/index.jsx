@@ -16,9 +16,9 @@ import {
   CheckCircleOutlined, PieChartOutlined, LikeOutlined
 } from '@ant-design/icons';
 import ProductForm from './components/ProductForm';
-import ProductDetail from './components/ProductDetail.jsx';
-import ProductStats from './components/ProductStats.jsx';
-import BatchOperationForm from './components/BatchOperationForm.jsx';
+import ProductDetail from './components/ProductDetail';
+import ProductStats from './components/ProductStats';
+import BatchOperationForm from './components/BatchOperationForm';
 import { useRequest } from '../../hooks/useRequest';
 import { useAuth } from '../../hooks/useAuth';
 import { formatPrice, formatDateTime } from '../../utils/format';
@@ -26,7 +26,6 @@ import { exportToExcel } from '../../utils/export';
 import './index.less';
 
 const { Option } = Select;
-const { TabPane } = Tabs;
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
 
@@ -92,14 +91,32 @@ const Products = () => {
         return;
       }
       
-      const res = await fetchData({
-        url: `/api/v1/categories`,
-        method: 'GET'
-      });
+      // 尝试多个API路径
+      let res = null;
+      try {
+        res = await fetchData({
+          url: `/api/v1/merchants/categories/all`,
+          method: 'GET',
+          showError: false
+        });
+      } catch (error) {
+        console.warn('主要分类API失败，尝试备用API');
+        try {
+          res = await fetchData({
+            url: `/api/v1/merchants/categories`,
+            method: 'GET',
+            showError: false
+          });
+        } catch (backupError) {
+          console.warn('备用分类API也失败，使用空数组');
+          res = [];
+        }
+      }
+      
       setCategories(res || []);
     } catch (error) {
       console.error('加载分类失败:', error);
-      message.error('加载分类失败');
+      setCategories([]);
     }
   }, [fetchData, isMerchant, getMerchantId]);
   
@@ -127,15 +144,19 @@ const Products = () => {
         ...params
       };
       
-      // 移除未定义的参数
-      Object.keys(queryParams).forEach(key => 
-        queryParams[key] === undefined && delete queryParams[key]
-      );
+      // 移除未定义的参数和空字符串参数
+      Object.keys(queryParams).forEach(key => {
+        if (queryParams[key] === undefined || queryParams[key] === '') {
+          delete queryParams[key];
+        }
+      });
       
       // 构建查询字符串
       const queryString = Object.keys(queryParams)
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
+      
+      console.log('请求URL:', `/api/v1/products/merchant?${queryString}`);
       
       // 使用商户专用的API路径
       const res = await fetchData({
@@ -782,6 +803,42 @@ const Products = () => {
       ),
     },
   ];
+
+  // 定义Tabs配置
+  const tabItems = [
+    {
+      key: 'all',
+      label: `全部商品 (${pagination.total || 0})`,
+    },
+    {
+      key: 'onSale',
+      label: '在售商品',
+    },
+    {
+      key: 'offSale',
+      label: '已下架',
+    },
+    {
+      key: 'hot',
+      label: '热门商品',
+    },
+    {
+      key: 'new',
+      label: '新品上架',
+    },
+    {
+      key: 'recommend',
+      label: '推荐商品',
+    },
+    {
+      key: 'lowStock',
+      label: '库存不足',
+    },
+    {
+      key: 'hasGroup',
+      label: '参与团购',
+    },
+  ];
   
   // 渲染函数
   return (
@@ -789,6 +846,7 @@ const Products = () => {
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
+        items={tabItems}
         tabBarExtraContent={
           <Space>
             <Tooltip title="表格视图">
@@ -819,16 +877,7 @@ const Products = () => {
             </Button>
           </Space>
         }
-      >
-        <TabPane tab={`全部商品 (${pagination.total || 0})`} key="all" />
-        <TabPane tab="在售商品" key="onSale" />
-        <TabPane tab="已下架" key="offSale" />
-        <TabPane tab="热门商品" key="hot" />
-        <TabPane tab="新品上架" key="new" />
-        <TabPane tab="推荐商品" key="recommend" />
-        <TabPane tab="库存不足" key="lowStock" />
-        <TabPane tab="参与团购" key="hasGroup" />
-      </Tabs>
+      />
       
       <Card className="search-card">
         <Row gutter={16}>
@@ -956,7 +1005,7 @@ const Products = () => {
                       allowClear
                     >
                       <Option value={0}>全部</Option>
-                                             <Option value={1}>有库存 (≥1)</Option>
+                      <Option value={1}>有库存 (≥1)</Option>
                       <Option value={10}>库存充足 (≥10)</Option>
                       <Option value={-1}>库存不足 (≤10)</Option>
                       <Option value={-2}>已售罄 (=0)</Option>
@@ -1033,20 +1082,20 @@ const Products = () => {
                       </div>
                     }
                     actions={[
-                      <Tooltip title="查看详情">
-                        <EyeOutlined key="view" onClick={() => handleViewProduct(product)} />
+                      <Tooltip title="查看详情" key="view">
+                        <EyeOutlined onClick={() => handleViewProduct(product)} />
                       </Tooltip>,
-                      <Tooltip title="编辑商品">
-                        <EditOutlined key="edit" onClick={() => handleEditProduct(product)} />
+                      <Tooltip title="编辑商品" key="edit">
+                        <EditOutlined onClick={() => handleEditProduct(product)} />
                       </Tooltip>,
-                      <Tooltip title="删除商品">
+                      <Tooltip title="删除商品" key="delete">
                         <Popconfirm
                           title="确定要删除该商品吗？"
                           onConfirm={() => handleDeleteProduct(product.id)}
                           okText="确定"
                           cancelText="取消"
                         >
-                          <DeleteOutlined key="delete" />
+                          <DeleteOutlined />
                         </Popconfirm>
                       </Tooltip>,
                     ]}

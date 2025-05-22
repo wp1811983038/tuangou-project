@@ -16,7 +16,7 @@ async def search_products(
     keyword: Optional[str] = Query(None, max_length=100),
     category_id: Optional[int] = Query(None, ge=1),
     merchant_id: Optional[int] = Query(None, ge=1),
-    status: Optional[int] = Query(None, ge=0),
+    product_status: Optional[int] = Query(None, ge=0),  # 重命名避免与status模块冲突
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     is_hot: Optional[bool] = Query(None),
@@ -40,7 +40,7 @@ async def search_products(
             keyword=keyword,
             category_id=category_id,
             merchant_id=merchant_id,
-            status=status,
+            status=product_status,  # 使用重命名后的参数
             min_price=min_price,
             max_price=max_price,
             is_hot=is_hot,
@@ -64,6 +64,9 @@ async def search_products(
             }
         }
     except Exception as e:
+        import traceback
+        print(f"搜索商品失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"搜索商品失败: {str(e)}"
@@ -74,7 +77,7 @@ async def search_products(
 async def get_merchant_products(
     keyword: Optional[str] = Query(None, max_length=100),
     category_id: Optional[int] = Query(None, ge=1),
-    status: Optional[int] = Query(None, ge=0),
+    product_status: Optional[int] = Query(None, ge=0),  # 重命名避免冲突
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     is_hot: Optional[bool] = Query(None),
@@ -92,24 +95,46 @@ async def get_merchant_products(
     获取当前商户的商品列表 - 商户专用接口
     """
     try:
-        products, total = await product_service.search_products_for_merchant(
-            db=db,
-            merchant_id=current_user.merchant_id,
-            keyword=keyword,
-            category_id=category_id,
-            status=status,
-            min_price=min_price,
-            max_price=max_price,
-            is_hot=is_hot,
-            is_new=is_new,
-            is_recommend=is_recommend,
-            has_group=has_group,
-            min_stock=min_stock,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            skip=pagination["skip"],
-            limit=pagination["limit"]
-        )
+        # 检查 search_products_for_merchant 函数是否存在
+        if hasattr(product_service, 'search_products_for_merchant'):
+            products, total = await product_service.search_products_for_merchant(
+                db=db,
+                merchant_id=current_user.merchant_id,
+                keyword=keyword,
+                category_id=category_id,
+                status=product_status,  # 使用重命名后的参数
+                min_price=min_price,
+                max_price=max_price,
+                is_hot=is_hot,
+                is_new=is_new,
+                is_recommend=is_recommend,
+                has_group=has_group,
+                min_stock=min_stock,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                skip=pagination["skip"],
+                limit=pagination["limit"]
+            )
+        else:
+            # 如果专用函数不存在，使用通用搜索函数
+            products, total = await product_service.search_products(
+                db=db,
+                keyword=keyword,
+                category_id=category_id,
+                merchant_id=current_user.merchant_id,  # 添加商户ID过滤
+                status=product_status,
+                min_price=min_price,
+                max_price=max_price,
+                is_hot=is_hot,
+                is_new=is_new,
+                is_recommend=is_recommend,
+                has_group=has_group,
+                min_stock=min_stock,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                skip=pagination["skip"],
+                limit=pagination["limit"]
+            )
         
         return {
             "data": {
@@ -121,6 +146,9 @@ async def get_merchant_products(
             }
         }
     except Exception as e:
+        import traceback
+        print(f"获取商户商品列表失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取商品列表失败: {str(e)}"
@@ -155,6 +183,9 @@ async def get_product(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"获取商品详情失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取商品详情失败: {str(e)}"
@@ -183,6 +214,9 @@ async def create_product(
             detail=str(e)
         )
     except Exception as e:
+        import traceback
+        print(f"创建商品失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建商品失败: {str(e)}"
@@ -230,6 +264,9 @@ async def update_product(
             detail=str(e)
         )
     except Exception as e:
+        import traceback
+        print(f"更新商品失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新商品失败: {str(e)}"
@@ -272,6 +309,9 @@ async def update_product_images(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"更新商品图片失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新商品图片失败: {str(e)}"
@@ -314,6 +354,9 @@ async def update_product_specifications(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"更新商品规格失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新商品规格失败: {str(e)}"
@@ -367,6 +410,9 @@ async def delete_product(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"删除商品失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除商品失败: {str(e)}"
@@ -390,6 +436,9 @@ async def get_related_products(
         )
         return related_products
     except Exception as e:
+        import traceback
+        print(f"获取相关商品失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取相关商品失败: {str(e)}"
@@ -490,6 +539,9 @@ async def batch_operation_products(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        print(f"批量操作失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量操作失败: {str(e)}"
@@ -514,6 +566,9 @@ async def get_product_stats(
             "data": stats
         }
     except Exception as e:
+        import traceback
+        print(f"获取统计数据失败: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取统计数据失败: {str(e)}"
