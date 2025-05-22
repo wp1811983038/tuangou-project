@@ -30,12 +30,13 @@ class ProductSpecificationUpdate(ProductSpecificationBase):
 class ProductSpecification(ProductSpecificationBase):
     """商品规格响应模型"""
     id: int
-    product_id: Optional[int] = None  # 修改为可选
+    product_id: Optional[int] = None  # 修改为可选，避免序列化错误
     created_at: Optional[datetime] = None  # 修改为可选
     updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
+        extra = "ignore"  # 忽略额外字段，避免序列化错误
 
 
 class ProductImageBase(BaseModel):
@@ -62,6 +63,7 @@ class ProductImage(ProductImageBase):
 
     class Config:
         from_attributes = True
+        extra = "ignore"
 
 
 class ProductBase(BaseModel):
@@ -150,11 +152,12 @@ class ProductInDB(ProductBase):
     merchant_id: int
     sales: int = 0
     views: int = 0
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None  # 修改为可选
+    updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
+        extra = "ignore"
 
 
 class Product(ProductBase):
@@ -168,11 +171,17 @@ class Product(ProductBase):
     has_group: bool = False
     favorite_count: int = 0
     is_favorite: bool = False
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None  # 修改为可选，避免序列化错误
+    updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
+        extra = "ignore"  # 忽略额外字段，避免序列化错误
+        # 添加JSON编码器处理特殊类型
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+            float: lambda v: round(v, 2) if v is not None else None
+        }
 
 
 class ProductDetail(Product):
@@ -180,6 +189,14 @@ class ProductDetail(Product):
     images: List[ProductImage] = []
     specifications: List[ProductSpecification] = []
     related_products: List[Product] = []
+
+    class Config:
+        from_attributes = True
+        extra = "ignore"
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+            float: lambda v: round(v, 2) if v is not None else None
+        }
 
 
 class ProductQueryParams(PaginationParams):

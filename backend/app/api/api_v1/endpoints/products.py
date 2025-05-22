@@ -1,7 +1,8 @@
 # backend/app/api/api_v1/endpoints/products.py
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, File, UploadFile, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, File, UploadFile
+from fastapi import status as http_status  # 重命名导入的status模块
 from sqlalchemy.orm import Session
 
 from app import schemas
@@ -11,12 +12,13 @@ from app.services import product_service
 router = APIRouter()
 
 
+
 @router.get("/", response_model=schemas.common.PaginatedResponse)
 async def search_products(
     keyword: Optional[str] = Query(None, max_length=100),
     category_id: Optional[int] = Query(None, ge=1),
     merchant_id: Optional[int] = Query(None, ge=1),
-    product_status: Optional[int] = Query(None, ge=0),  # 重命名避免与status模块冲突
+    status: Optional[int] = Query(None, ge=0),
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     is_hot: Optional[bool] = Query(None),
@@ -40,7 +42,7 @@ async def search_products(
             keyword=keyword,
             category_id=category_id,
             merchant_id=merchant_id,
-            status=product_status,  # 使用重命名后的参数
+            status=status,
             min_price=min_price,
             max_price=max_price,
             is_hot=is_hot,
@@ -54,9 +56,18 @@ async def search_products(
             limit=pagination["limit"]
         )
         
+        # 添加调试输出
+        print(f"搜索到 {len(products)} 个商品")
+        if products:
+            print(f"第一个商品数据类型: {type(products[0])}")
+            # 如果返回的是ORM对象列表，需要转换
+            if hasattr(products[0], '__dict__'):
+                print("警告: 商品列表包含ORM对象，需要转换")
+                # 这里应该确保search_products返回的是字典列表
+        
         return {
             "data": {
-                "items": products,
+                "items": products,  # 确保这是字典列表，而不是ORM对象列表
                 "total": total,
                 "page": pagination["page"],
                 "page_size": pagination["page_size"],
@@ -64,11 +75,11 @@ async def search_products(
             }
         }
     except Exception as e:
-        import traceback
         print(f"搜索商品失败: {str(e)}")
-        print(traceback.format_exc())
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"搜索商品失败: {str(e)}"
         )
 
@@ -77,7 +88,7 @@ async def search_products(
 async def get_merchant_products(
     keyword: Optional[str] = Query(None, max_length=100),
     category_id: Optional[int] = Query(None, ge=1),
-    product_status: Optional[int] = Query(None, ge=0),  # 重命名避免冲突
+    status: Optional[int] = Query(None, ge=0),
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     is_hot: Optional[bool] = Query(None),
@@ -91,50 +102,69 @@ async def get_merchant_products(
     current_user: schemas.user.User = Depends(deps.get_current_merchant),
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    获取当前商户的商品列表 - 商户专用接口
-    """
+    """获取当前商户的商品列表 - 商户专用接口"""
     try:
-        # 检查 search_products_for_merchant 函数是否存在
-        if hasattr(product_service, 'search_products_for_merchant'):
-            products, total = await product_service.search_products_for_merchant(
-                db=db,
-                merchant_id=current_user.merchant_id,
-                keyword=keyword,
-                category_id=category_id,
-                status=product_status,  # 使用重命名后的参数
-                min_price=min_price,
-                max_price=max_price,
-                is_hot=is_hot,
-                is_new=is_new,
-                is_recommend=is_recommend,
-                has_group=has_group,
-                min_stock=min_stock,
-                sort_by=sort_by,
-                sort_order=sort_order,
-                skip=pagination["skip"],
-                limit=pagination["limit"]
-            )
-        else:
-            # 如果专用函数不存在，使用通用搜索函数
-            products, total = await product_service.search_products(
-                db=db,
-                keyword=keyword,
-                category_id=category_id,
-                merchant_id=current_user.merchant_id,  # 添加商户ID过滤
-                status=product_status,
-                min_price=min_price,
-                max_price=max_price,
-                is_hot=is_hot,
-                is_new=is_new,
-                is_recommend=is_recommend,
-                has_group=has_group,
-                min_stock=min_stock,
-                sort_by=sort_by,
-                sort_order=sort_order,
-                skip=pagination["skip"],
-                limit=pagination["limit"]
-            )
+        products, total = await product_service.search_products(
+            db=db,
+            keyword=keyword,
+            category_id=category_id,
+            merchant_id=current_user.merchant_id,
+            status=status,
+            min_price=min_price,
+            max_price=max_price,
+            is_hot=is_hot,
+            is_new=is_new,
+            is_recommend=is_recommend,
+            has_group=has_group,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            user_id=None,
+            skip=pagination["skip"],
+            limit=pagination["limit"]
+        )
+        
+        # 检查返回的数据类型并强制转换
+        print(f"返回的products类型: {type(products)}")
+        if products and len(products) > 0:
+            print(f"第一个商品的类型: {type(products[0])}")
+            
+            # 如果返回的是ORM对象列表，手动转换为字典列表
+            if hasattr(products[0], '__dict__'):
+                print("检测到ORM对象，开始转换...")
+                converted_products = []
+                
+                for product in products:
+                    # 手动转换ORM对象为字典
+                    product_dict = {
+                        "id": product.id,
+                        "merchant_id": product.merchant_id,
+                        "name": str(product.name or ""),
+                        "thumbnail": str(product.thumbnail or ""),
+                        "original_price": float(product.original_price or 0),
+                        "current_price": float(product.current_price or 0),
+                        "group_price": float(product.group_price) if product.group_price else None,
+                        "stock": int(product.stock or 0),
+                        "unit": str(product.unit or "件"),
+                        "description": str(product.description or ""),
+                        "sales": int(product.sales or 0),
+                        "views": int(product.views or 0),
+                        "status": int(product.status or 1),
+                        "sort_order": int(product.sort_order or 0),
+                        "is_hot": bool(product.is_hot or False),
+                        "is_new": bool(product.is_new or True),
+                        "is_recommend": bool(product.is_recommend or False),
+                        "has_group": False,  # 暂时设为False
+                        "favorite_count": 0,  # 暂时设为0
+                        "is_favorite": False,  # 暂时设为False
+                        "merchant_name": "",  # 暂时为空
+                        "categories": [],  # 暂时为空数组
+                        "created_at": product.created_at,
+                        "updated_at": product.updated_at
+                    }
+                    converted_products.append(product_dict)
+                
+                products = converted_products
+                print(f"转换完成，转换了 {len(products)} 个商品")
         
         return {
             "data": {
@@ -146,11 +176,11 @@ async def get_merchant_products(
             }
         }
     except Exception as e:
+        print(f"获取商品列表失败: {str(e)}")
         import traceback
-        print(f"获取商户商品列表失败: {str(e)}")
-        print(traceback.format_exc())
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"获取商品列表失败: {str(e)}"
         )
 
@@ -167,6 +197,7 @@ async def get_product(
     user_id = current_user.id if current_user else None
     
     try:
+        # 确保这里调用的是服务层函数，返回字典
         product = await product_service.get_product(
             db=db,
             product_id=product_id,
@@ -175,19 +206,36 @@ async def get_product(
         
         if not product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="商品不存在"
             )
         
+        # 添加调试输出
+        print(f"API返回数据类型: {type(product)}")
+        if isinstance(product, dict):
+            print(f"返回字典键: {list(product.keys())}")
+        else:
+            print(f"警告: 返回的不是字典类型，而是: {type(product)}")
+            # 如果返回的是ORM对象，转换为字典
+            if hasattr(product, '__dict__'):
+                product_dict = {}
+                for key, value in product.__dict__.items():
+                    if not key.startswith('_'):  # 跳过SQLAlchemy内部属性
+                        if hasattr(value, '__dict__'):  # 如果是嵌套的ORM对象
+                            continue  # 跳过复杂对象
+                        product_dict[key] = value
+                product = product_dict
+        
         return product
+        
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         print(f"获取商品详情失败: {str(e)}")
-        print(traceback.format_exc())
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取商品详情失败: {str(e)}"
         )
 
@@ -210,7 +258,7 @@ async def create_product(
         return product
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
@@ -218,7 +266,7 @@ async def create_product(
         print(f"创建商品失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建商品失败: {str(e)}"
         )
 
@@ -230,22 +278,20 @@ async def update_product(
     current_user: schemas.user.User = Depends(deps.get_current_merchant),
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    更新商品
-    """
+    """更新商品"""
     try:
-        # 先检查商品是否存在并属于当前商户
-        existing_product = await product_service.get_product_by_id_raw(db=db, product_id=product_id)
+        # 修改这一行：get_product_by_id_raw -> get_product_by_id
+        existing_product = await product_service.get_product_by_id(db=db, product_id=product_id)
         
         if not existing_product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="商品不存在"
             )
         
         if existing_product.merchant_id != current_user.merchant_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=403,
                 detail="您没有权限修改此商品"
             )
         
@@ -260,15 +306,12 @@ async def update_product(
         raise
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail=str(e)
         )
     except Exception as e:
-        import traceback
-        print(f"更新商品失败: {str(e)}")
-        print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"更新商品失败: {str(e)}"
         )
 
@@ -289,13 +332,13 @@ async def update_product_images(
         
         if not existing_product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="商品不存在"
             )
         
         if existing_product.merchant_id != current_user.merchant_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="您没有权限修改此商品"
             )
         
@@ -313,7 +356,7 @@ async def update_product_images(
         print(f"更新商品图片失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新商品图片失败: {str(e)}"
         )
 
@@ -334,13 +377,13 @@ async def update_product_specifications(
         
         if not existing_product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="商品不存在"
             )
         
         if existing_product.merchant_id != current_user.merchant_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="您没有权限修改此商品"
             )
         
@@ -358,7 +401,7 @@ async def update_product_specifications(
         print(f"更新商品规格失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新商品规格失败: {str(e)}"
         )
 
@@ -369,35 +412,33 @@ async def delete_product(
     current_user: schemas.user.User = Depends(deps.get_current_merchant),
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    删除商品
-    """
+    """删除商品"""
     try:
-        # 检查商品是否存在并属于当前商户
-        existing_product = await product_service.get_product_by_id_raw(db=db, product_id=product_id)
+        # 修改这一行：get_product_by_id_raw -> get_product_by_id
+        existing_product = await product_service.get_product_by_id(db=db, product_id=product_id)
         
         if not existing_product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="商品不存在"
             )
         
         if existing_product.merchant_id != current_user.merchant_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=403,
                 detail="您没有权限删除此商品"
             )
         
         # 检查商品是否有未完成的订单或团购
         if await product_service.has_pending_orders(db=db, product_id=product_id):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail="该商品有未完成的订单，无法删除"
             )
         
         if await product_service.has_active_groups(db=db, product_id=product_id):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail="该商品有进行中的团购活动，无法删除"
             )
         
@@ -410,11 +451,8 @@ async def delete_product(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"删除商品失败: {str(e)}")
-        print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"删除商品失败: {str(e)}"
         )
 
@@ -440,7 +478,7 @@ async def get_related_products(
         print(f"获取相关商品失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取相关商品失败: {str(e)}"
         )
 
@@ -465,13 +503,13 @@ async def batch_operation_products(
     
     if not operation:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="请指定操作类型"
         )
     
     if not product_ids:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="请选择要操作的商品"
         )
     
@@ -479,7 +517,7 @@ async def batch_operation_products(
     valid_operations = ["delete", "update_status", "update_tags", "update_category"]
     if operation not in valid_operations:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的操作类型，支持的操作: {', '.join(valid_operations)}"
         )
     
@@ -489,7 +527,7 @@ async def batch_operation_products(
         
         if len(products) != len(product_ids):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="部分商品不存在"
             )
         
@@ -501,7 +539,7 @@ async def batch_operation_products(
         
         if unauthorized_products:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail=f"您没有权限操作以下商品: {', '.join(unauthorized_products[:3])}{'...' if len(unauthorized_products) > 3 else ''}"
             )
         
@@ -514,7 +552,7 @@ async def batch_operation_products(
             
             if products_with_orders:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=f"以下商品有未完成的订单，无法删除: {', '.join(products_with_orders[:3])}{'...' if len(products_with_orders) > 3 else ''}"
                 )
         
@@ -543,7 +581,7 @@ async def batch_operation_products(
         print(f"批量操作失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量操作失败: {str(e)}"
         )
 
@@ -570,6 +608,6 @@ async def get_product_stats(
         print(f"获取统计数据失败: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取统计数据失败: {str(e)}"
         )

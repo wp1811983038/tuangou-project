@@ -185,7 +185,7 @@ const Products = () => {
   useEffect(() => {
     loadProducts();
     loadCategories();
-  }, [loadProducts, loadCategories]);
+  }, []);
   
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {

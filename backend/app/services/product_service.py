@@ -34,127 +34,208 @@ async def get_product(db: Session, product_id: int, user_id: Optional[int] = Non
         if not product:
             raise HTTPException(status_code=404, detail="商品不存在")
         
-        # 增加浏览量
-        product.views += 1
-        db.commit()
+        # 定义安全的数据处理函数，避免None值和类型错误
+        def safe_int(value, default=0):
+            """安全转换为整数"""
+            try:
+                return int(value) if value is not None else default
+            except (ValueError, TypeError):
+                return default
         
-        # 获取商户信息
-        merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
+        def safe_float(value, default=0.0):
+            """安全转换为浮点数"""
+            try:
+                return float(value) if value is not None else default
+            except (ValueError, TypeError):
+                return default
         
-        # 获取商品图片
-        images = db.query(ProductImage).filter(
-            ProductImage.product_id == product_id
-        ).order_by(ProductImage.sort_order).all()
+        def safe_str(value, default=""):
+            """安全转换为字符串"""
+            return str(value) if value is not None else default
         
-        # 获取商品规格
-        specifications = db.query(ProductSpecification).filter(
-            ProductSpecification.product_id == product_id
-        ).order_by(ProductSpecification.sort_order).all()
+        def safe_bool(value, default=False):
+            """安全转换为布尔值"""
+            try:
+                return bool(value) if value is not None else default
+            except (ValueError, TypeError):
+                return default
         
-        # 获取商品分类并确保包含必要字段
-        categories_data = []
-        categories = db.query(Category).join(
-            product_categories,
-            product_categories.c.category_id == Category.id
-        ).filter(
-            product_categories.c.product_id == product_id
-        ).all()
+        def safe_datetime(value):
+            """安全处理日期时间"""
+            if isinstance(value, datetime):
+                return value
+            return None
         
-        for category in categories:
-            categories_data.append({
-                "id": category.id,
-                "name": category.name,
-                "icon": category.icon,
-                "created_at": category.created_at or datetime.now(),
-                "updated_at": category.updated_at or datetime.now(),
-                "sort_order": category.sort_order,
-                "is_active": category.is_active
-            })
+        # 安全增加浏览量
+        try:
+            current_views = safe_int(product.views)
+            product.views = current_views + 1
+            db.commit()
+        except Exception as e:
+            print(f"更新浏览量失败: {e}")
+            db.rollback()
         
-        # 检查是否收藏
-        is_favorite = False
-        if user_id:
-            favorite = db.query(Favorite).filter(
-                Favorite.user_id == user_id,
-                Favorite.product_id == product_id
-            ).first()
-            if favorite:
-                is_favorite = True
+        # 安全获取商户信息
+        merchant = None
+        merchant_name = ""
+        try:
+            merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
+            if merchant:
+                merchant_name = safe_str(merchant.name)
+        except Exception as e:
+            print(f"获取商户信息失败: {e}")
         
-        # 收藏数量
-        favorite_count = db.query(func.count(Favorite.id)).filter(
-            Favorite.product_id == product_id
-        ).scalar() or 0
-        
-        # 检查是否有团购
-        has_group = False
-        
-        # 构建响应数据
+        # 安全获取商品图片
         images_data = []
-        for image in images:
-            images_data.append({
-                "id": image.id,
-                "image_url": image.image_url,
-                "sort_order": image.sort_order,
-                # 添加缺失的必填字段
-                "product_id": product_id,
-                "created_at": image.created_at or datetime.now()
-            })
+        try:
+            images = db.query(ProductImage).filter(
+                ProductImage.product_id == product_id
+            ).order_by(ProductImage.sort_order).all()
+            
+            for image in images:
+                images_data.append({
+                    "id": image.id,
+                    "image_url": safe_str(image.image_url),
+                    "sort_order": safe_int(image.sort_order),
+                    "product_id": product_id,
+                    "created_at": safe_datetime(image.created_at)
+                })
+        except Exception as e:
+            print(f"获取商品图片失败: {e}")
+            images_data = []
         
+        # 安全获取商品规格
         specs_data = []
-        for spec in specifications:
-            specs_data.append({
-                "id": spec.id,
-                "name": spec.name,
-                "value": spec.value,
-                "price_adjustment": spec.price_adjustment,
-                "stock": spec.stock,
-                "sort_order": spec.sort_order,
-                # 添加缺失的必填字段
-                "product_id": product_id,
-                "created_at": spec.created_at or datetime.now(),
-                "updated_at": spec.updated_at or datetime.now()
-            })
+        try:
+            specifications = db.query(ProductSpecification).filter(
+                ProductSpecification.product_id == product_id
+            ).order_by(ProductSpecification.sort_order).all()
+            
+            for spec in specifications:
+                specs_data.append({
+                    "id": spec.id,
+                    "name": safe_str(spec.name),
+                    "value": safe_str(spec.value),
+                    "price_adjustment": safe_float(spec.price_adjustment),
+                    "stock": safe_int(spec.stock),
+                    "sort_order": safe_int(spec.sort_order),
+                    "product_id": product_id,
+                    "created_at": safe_datetime(spec.created_at),
+                    "updated_at": safe_datetime(spec.updated_at)
+                })
+        except Exception as e:
+            print(f"获取商品规格失败: {e}")
+            specs_data = []
         
-        return {
+        # 安全获取商品分类
+        categories_data = []
+        try:
+            categories = db.query(Category).join(
+                product_categories,
+                product_categories.c.category_id == Category.id
+            ).filter(
+                product_categories.c.product_id == product_id
+            ).all()
+            
+            for category in categories:
+                categories_data.append({
+                    "id": category.id,
+                    "name": safe_str(category.name),
+                    "icon": safe_str(category.icon),
+                    "sort_order": safe_int(category.sort_order),
+                    "is_active": safe_bool(category.is_active, True),
+                    "created_at": safe_datetime(category.created_at),
+                    "updated_at": safe_datetime(category.updated_at)
+                })
+        except Exception as e:
+            print(f"获取商品分类失败: {e}")
+            categories_data = []
+        
+        # 安全检查收藏状态
+        is_favorite = False
+        favorite_count = 0
+        try:
+            if user_id:
+                favorite = db.query(Favorite).filter(
+                    Favorite.user_id == user_id,
+                    Favorite.product_id == product_id
+                ).first()
+                is_favorite = bool(favorite)
+            
+            favorite_count = db.query(func.count(Favorite.id)).filter(
+                Favorite.product_id == product_id
+            ).scalar() or 0
+            favorite_count = safe_int(favorite_count)
+        except Exception as e:
+            print(f"检查收藏状态失败: {e}")
+            is_favorite = False
+            favorite_count = 0
+        
+        # 安全检查团购状态
+        has_group = False
+        try:
+            active_group = db.query(Group).filter(
+                Group.product_id == product_id,
+                Group.status == 1,  # 进行中
+                Group.end_time > datetime.now()
+            ).first()
+            has_group = bool(active_group)
+        except Exception as e:
+            print(f"检查团购状态失败: {e}")
+            has_group = False
+        
+        # 构建安全的响应数据，确保所有字段都有合适的默认值
+        product_data = {
             "id": product.id,
             "merchant_id": product.merchant_id,
-            "merchant_name": merchant.name if merchant else None,
-            "name": product.name,
-            "thumbnail": product.thumbnail,
-            "original_price": product.original_price,
-            "current_price": product.current_price,
-            "group_price": product.group_price,
-            "stock": product.stock,
-            "unit": product.unit,
-            "description": product.description,
-            "detail": product.detail,
-            "sales": product.sales,
-            "views": product.views,
-            "status": product.status,
-            "sort_order": product.sort_order,
-            "is_hot": product.is_hot,
-            "is_new": product.is_new,
-            "is_recommend": product.is_recommend,
+            "merchant_name": merchant_name,
+            "name": safe_str(product.name),
+            "thumbnail": safe_str(product.thumbnail),
+            "original_price": safe_float(product.original_price),
+            "current_price": safe_float(product.current_price),
+            "group_price": safe_float(product.group_price) if product.group_price is not None else None,
+            "stock": safe_int(product.stock),
+            "unit": safe_str(product.unit, "件"),
+            "description": safe_str(product.description),
+            "detail": safe_str(product.detail),
+            "sales": safe_int(product.sales),
+            "views": safe_int(product.views),
+            "status": safe_int(product.status, 1),
+            "sort_order": safe_int(product.sort_order),
+            "is_hot": safe_bool(product.is_hot),
+            "is_new": safe_bool(product.is_new, True),
+            "is_recommend": safe_bool(product.is_recommend),
             "has_group": has_group,
             "favorite_count": favorite_count,
             "is_favorite": is_favorite,
             "categories": categories_data,
             "images": images_data,
             "specifications": specs_data,
-            "created_at": product.created_at,
-            "updated_at": product.updated_at
+            "created_at": safe_datetime(product.created_at),
+            "updated_at": safe_datetime(product.updated_at)
         }
+        
+        # 添加调试信息，帮助定位问题
+        print(f"成功构建商品数据，商品ID: {product_id}")
+        print(f"数据字段数量: {len(product_data)}")
+        print(f"分类数量: {len(categories_data)}")
+        print(f"图片数量: {len(images_data)}")
+        print(f"规格数量: {len(specs_data)}")
+        
+        return product_data
+        
     except HTTPException as e:
         # 重新抛出HTTP异常
+        print(f"HTTP异常: {e.detail}")
         raise
     except Exception as e:
         # 记录详细错误并返回友好消息
         import traceback
-        print(f"获取商品详情出错，商品ID:{product_id}，错误:{str(e)}")
+        error_msg = f"获取商品详情出错，商品ID:{product_id}，错误:{str(e)}"
+        print(error_msg)
+        print("详细错误信息:")
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"获取商品详情时出错:{str(e)}")
-
+        raise HTTPException(status_code=500, detail="获取商品详情时发生系统错误")
 
 async def search_products(
     db: Session,
@@ -168,6 +249,7 @@ async def search_products(
     is_new: Optional[bool] = None,
     is_recommend: Optional[bool] = None,
     has_group: Optional[bool] = None,
+    min_stock: Optional[int] = None,  # 添加 min_stock 参数
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
     user_id: Optional[int] = None,
@@ -177,17 +259,47 @@ async def search_products(
     """搜索商品列表"""
     query = db.query(Product)
     
+    # 安全数据处理函数
+    def safe_int(value, default=0):
+        try:
+            return int(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_float(value, default=0.0):
+        try:
+            return float(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_str(value, default=""):
+        return str(value) if value is not None else default
+    
+    def safe_bool(value, default=False):
+        try:
+            return bool(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        return None
+    
     # 筛选条件
     if keyword:
-        query = query.filter(Product.name.ilike(f"%{keyword}%"))
+        query = query.filter(
+            or_(
+                Product.name.ilike(f"%{keyword}%"),
+                Product.description.ilike(f"%{keyword}%")
+            )
+        )
     
     if category_id:
         query = query.join(
             product_categories,
-            product_categories.c.product_id == Product.id
-        ).filter(
-            product_categories.c.category_id == category_id
-        )
+            Product.id == product_categories.c.product_id
+        ).filter(product_categories.c.category_id == category_id)
     
     if merchant_id:
         query = query.filter(Product.merchant_id == merchant_id)
@@ -212,6 +324,15 @@ async def search_products(
     
     if is_recommend is not None:
         query = query.filter(Product.is_recommend == is_recommend)
+    
+    # 库存筛选
+    if min_stock is not None:
+        if min_stock == -1:  # 库存不足 (<=10)
+            query = query.filter(Product.stock <= 10)
+        elif min_stock == -2:  # 已售罄 (=0)
+            query = query.filter(Product.stock == 0)
+        else:  # 库存 >= min_stock
+            query = query.filter(Product.stock >= min_stock)
     
     # 处理团购筛选
     if has_group is not None:
@@ -253,79 +374,103 @@ async def search_products(
     # 分页
     products = query.offset(skip).limit(limit).all()
     
-    # 处理结果
+    # 处理结果 - 关键：转换为字典列表而不是返回 ORM 对象
     result = []
     for product in products:
-        # 获取商户名称
-        merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
-        
-        # 获取商品分类
-        categories = db.query(Category).join(
-            product_categories,
-            product_categories.c.category_id == Category.id
-        ).filter(
-            product_categories.c.product_id == product.id
-        ).all()
-        
-        # 检查是否收藏
-        is_favorite = False
-        if user_id:
-            favorite = db.query(Favorite).filter(
-                Favorite.user_id == user_id,
-                Favorite.product_id == product.id
-            ).first()
-            if favorite:
-                is_favorite = True
-        
-        # 检查是否有团购
-        has_group = False
-        active_group = db.query(Group).filter(
-            Group.product_id == product.id,
-            Group.status == 1,  # 进行中
-            Group.end_time > datetime.now()
-        ).first()
-        if active_group:
-            has_group = True
-        
-        # 收藏数量
-        favorite_count = db.query(func.count(Favorite.id)).filter(
-            Favorite.product_id == product.id
-        ).scalar() or 0
-        
-        product_data = {
-            "id": product.id,
-            "merchant_id": product.merchant_id,
-            "merchant_name": merchant.name if merchant else None,
-            "name": product.name,
-            "thumbnail": product.thumbnail,
-            "original_price": product.original_price,
-            "current_price": product.current_price,
-            "group_price": product.group_price,
-            "stock": product.stock,
-            "unit": product.unit,
-            "description": product.description,
-            "sales": product.sales,
-            "views": product.views,
-            "status": product.status,
-            "is_hot": product.is_hot,
-            "is_new": product.is_new,
-            "is_recommend": product.is_recommend,
-            "has_group": has_group,
-            "favorite_count": favorite_count,
-            "is_favorite": is_favorite,
-            "categories": [
-                {
-                    "id": category.id,
-                    "name": category.name,
-                    "icon": category.icon
-                } for category in categories
-            ],
-            "created_at": product.created_at,
-            "updated_at": product.updated_at
-        }
-        
-        result.append(product_data)
+        try:
+            # 获取商户名称
+            merchant = None
+            try:
+                merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
+            except Exception as e:
+                print(f"获取商户信息失败: {e}")
+            
+            # 获取商品分类
+            categories_data = []
+            try:
+                categories = db.query(Category).join(
+                    product_categories,
+                    product_categories.c.category_id == Category.id
+                ).filter(
+                    product_categories.c.product_id == product.id
+                ).all()
+                
+                for category in categories:
+                    categories_data.append({
+                        "id": category.id,
+                        "name": safe_str(category.name),
+                        "icon": safe_str(category.icon)
+                    })
+            except Exception as e:
+                print(f"获取商品分类失败: {e}")
+                categories_data = []
+            
+            # 检查是否收藏
+            is_favorite = False
+            favorite_count = 0
+            try:
+                if user_id:
+                    favorite = db.query(Favorite).filter(
+                        Favorite.user_id == user_id,
+                        Favorite.product_id == product.id
+                    ).first()
+                    is_favorite = bool(favorite)
+                
+                favorite_count = db.query(func.count(Favorite.id)).filter(
+                    Favorite.product_id == product.id
+                ).scalar() or 0
+            except Exception as e:
+                print(f"检查收藏状态失败: {e}")
+                is_favorite = False
+                favorite_count = 0
+            
+            # 检查是否有团购
+            has_group = False
+            try:
+                active_group = db.query(Group).filter(
+                    Group.product_id == product.id,
+                    Group.status == 1,  # 进行中
+                    Group.end_time > datetime.now()
+                ).first()
+                has_group = bool(active_group)
+            except Exception as e:
+                print(f"检查团购状态失败: {e}")
+                has_group = False
+            
+            # 构建字典数据 - 这是关键，确保返回字典而不是ORM对象
+            product_data = {
+                "id": product.id,
+                "merchant_id": product.merchant_id,
+                "merchant_name": merchant.name if merchant else "",
+                "name": safe_str(product.name),
+                "thumbnail": safe_str(product.thumbnail),
+                "original_price": safe_float(product.original_price),
+                "current_price": safe_float(product.current_price),
+                "group_price": safe_float(product.group_price) if product.group_price is not None else None,
+                "stock": safe_int(product.stock),
+                "unit": safe_str(product.unit, "件"),
+                "description": safe_str(product.description),
+                "sales": safe_int(product.sales),
+                "views": safe_int(product.views),
+                "status": safe_int(product.status, 1),
+                "is_hot": safe_bool(product.is_hot),
+                "is_new": safe_bool(product.is_new, True),
+                "is_recommend": safe_bool(product.is_recommend),
+                "has_group": has_group,
+                "favorite_count": safe_int(favorite_count),
+                "is_favorite": is_favorite,
+                "categories": categories_data,
+                "created_at": safe_datetime(product.created_at),
+                "updated_at": safe_datetime(product.updated_at)
+            }
+            
+            result.append(product_data)  # 添加字典而不是ORM对象
+            
+        except Exception as e:
+            print(f"处理商品 {product.id} 时出错: {e}")
+            continue  # 跳过出错的商品，继续处理其他商品
     
+    print(f"成功处理 {len(result)} 个商品，总共 {total} 个")
     return result, total
 
 

@@ -1,3 +1,4 @@
+# backend/app/schemas/merchant.py
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -28,11 +29,13 @@ class CategoryUpdate(CategoryBase):
 class Category(CategoryBase):
     """分类响应模型"""
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None  # 修改为可选，避免None值错误
+    updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
+        # 添加这个配置，忽略额外字段，避免序列化错误
+        extra = "ignore"
 
 
 class MerchantBase(BaseModel):
@@ -100,15 +103,13 @@ class MerchantInDB(MerchantBase):
     rating: float = 5.0
     commission_rate: float = 0.05
     balance: float = 0.0
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None  # 修改为可选
+    updated_at: Optional[datetime] = None  # 修改为可选
 
     class Config:
         from_attributes = True
+        extra = "ignore"  # 添加这个配置
 
-
-# app/schemas/merchant.py
-# 修改 Merchant 类以包含更多字段
 
 class Merchant(MerchantBase):
     """商户响应模型"""
@@ -118,8 +119,8 @@ class Merchant(MerchantBase):
     categories: List[Category] = []
     product_count: Optional[int] = None
     distance: Optional[float] = None
-    created_at: datetime
-    # 添加以下字段
+    created_at: Optional[datetime] = None  # 修改为可选，避免序列化错误
+    # 修改以下字段为可选，确保序列化安全
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     service_radius: Optional[float] = None
@@ -133,12 +134,17 @@ class Merchant(MerchantBase):
 
     class Config:
         from_attributes = True
+        extra = "ignore"  # 添加这个配置，忽略额外字段
 
 
 class MerchantDetail(Merchant):
     """商户详细信息响应模型"""
     license_number: Optional[str] = None
-    commission_rate: float
+    commission_rate: Optional[float] = None  # 修改为可选
+
+    class Config:
+        from_attributes = True
+        extra = "ignore"
 
 
 class MerchantQueryParams(PaginationParams):
