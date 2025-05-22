@@ -17,6 +17,14 @@ from app.schemas.product import (
 from app.models.group import Group
 from app.models.order import OrderItem
 
+from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc, asc, func
+from app.models.product import Product, ProductImage, ProductSpecification
+from app.models.order import Order, OrderItem
+from app.models.group import Group
+from app.schemas.product import ProductCreate, ProductUpdate
+
 
 async def get_product(db: Session, product_id: int, user_id: Optional[int] = None) -> Dict:
     """获取单个商品详情"""
@@ -563,3 +571,308 @@ async def get_related_products(
         })
     
     return result
+
+
+
+
+async def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
+    """根据ID获取商品"""
+    return db.query(Product).filter(Product.id == product_id).first()
+
+
+async def get_products_by_ids(db: Session, product_ids: List[int]) -> List[Product]:
+    """根据ID列表获取商品列表"""
+    return db.query(Product).filter(Product.id.in_(product_ids)).all()
+
+
+async def has_pending_orders(db: Session, product_id: int) -> bool:
+    """检查商品是否有未完成的订单"""
+    # 检查是否有状态为待支付、待发货、待收货的订单
+    pending_statuses = [0, 1, 2]  # 根据实际订单状态定义调整
+    
+    count = db.query(OrderItem).join(Order).filter(
+        and_(
+            OrderItem.product_id == product_id,
+            Order.status.in_(pending_statuses)
+        )
+    ).count()
+    
+    return count > 0
+
+
+async def has_active_groups(db: Session, product_id: int) -> bool:
+    """检查商品是否有进行中的团购活动"""
+    # 检查是否有状态为进行中的团购
+    active_statuses = [0, 1]  # 根据实际团购状态定义调整
+    
+    count = db.query(Group).filter(
+        and_(
+            Group.product_id == product_id,
+            Group.status.in_(active_statuses)
+        )
+    ).count()
+    
+    return count > 0
+
+
+async def batch_operation(
+    db: Session, 
+    operation: str, 
+    product_ids: List[int], 
+    data: Dict[str, Any],
+    merchant_id: int
+) -> Dict[str, Any]:
+    """批量操作商品"""
+    success_count = 0
+    failed_count = 0
+    
+    try:
+        if operation == "delete":
+            # 批量删除
+            result = db.query(Product).filter(
+                and_(
+                    Product.id.in_(product_ids),
+                    Product.merchant_id == merchant_id
+                )
+            ).delete(synchronize_session=False)
+            success_count = result
+            
+        elif operation == "update_status":
+            # 批量更新状态
+            status = data.get("status", 1)
+            result = db.query(Product).filter(
+                and_(
+                    Product.id.in_(product_ids),
+                    Product.merchant_id == merchant_id
+                )
+            ).update({"status": status}, synchronize_session=False)
+            success_count = result
+            
+        elif operation == "update_tags":
+            # 批量更新标签
+            update_data = {}
+            if "is_hot" in data:
+                update_data["is_hot"] = data["is_hot"]
+            if "is_new" in data:
+                update_data["is_new"] = data["is_new"]
+            if "is_recommend" in data:
+                update_data["is_recommend"] = data["is_recommend"]
+            
+            if update_data:
+                result = db.query(Product).filter(
+                    and_(
+                        Product.id.in_(product_ids),
+                        Product.merchant_id == merchant_id
+                    )
+                ).update(update_data, synchronize_session=False)
+                success_count = result
+                
+        elif operation == "update_category":
+            # 批量更新分类（这个比较复杂，需要处理多对多关系）
+            category_ids = data.get("category_ids", [])
+            if category_ids:
+                for product_id in product_ids:
+                    product = db.query(Product).filter(
+                        and_(
+                            Product.id == product_id,
+                            Product.merchant_id == merchant_id
+                        )
+                    ).first()
+                    if product:
+                        # 清除现有分类关系
+                        product.categories.clear()
+                        # 添加新的分类关系
+                        from app.models.category import Category
+                        categories = db.query(Category).filter(
+                            Category.id.in_(category_ids)
+                        ).all()
+                        product.categories.extend(categories)
+                        success_count += 1
+        
+        db.commit()
+        
+        return {
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_count": len(product_ids)
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+async def get_merchant_product_stats(db: Session, merchant_id: int) -> Dict[str, Any]:
+    """获取商户商品统计数据"""
+    # 基础统计
+    total_products = db.query(Product).filter(Product.merchant_id == merchant_id).count()
+    
+    # 按状态统计
+    on_sale = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.status == 1)
+    ).count()
+    
+    off_sale = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.status == 0)
+    ).count()
+    
+    # 按标签统计
+    hot_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_hot == True)
+    ).count()
+    
+    new_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_new == True)
+    ).count()
+    
+    recommend_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_recommend == True)
+    ).count()
+    
+    # 库存统计
+    low_stock_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.stock < 10)
+    ).count()
+    
+    out_of_stock = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.stock == 0)
+    ).count()
+    
+    # 销售统计
+    total_sales = db.query(func.sum(Product.sales)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    total_views = db.query(func.sum(Product.views)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    # 价格统计
+    avg_price = db.query(func.avg(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    max_price = db.query(func.max(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    min_price = db.query(func.min(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    return {
+        "basic_stats": {
+            "total_products": total_products,
+            "on_sale": on_sale,
+            "off_sale": off_sale,
+        },
+        "tag_stats": {
+            "hot_products": hot_products,
+            "new_products": new_products,
+            "recommend_products": recommend_products,
+        },
+        "stock_stats": {
+            "low_stock_products": low_stock_products,
+            "out_of_stock": out_of_stock,
+            "total_stock": db.query(func.sum(Product.stock)).filter(
+                Product.merchant_id == merchant_id
+            ).scalar() or 0,
+        },
+        "sales_stats": {
+            "total_sales": total_sales,
+            "total_views": total_views,
+            "avg_conversion_rate": round((total_sales / total_views * 100) if total_views > 0 else 0, 2),
+        },
+        "price_stats": {
+            "avg_price": round(float(avg_price), 2) if avg_price else 0,
+            "max_price": float(max_price) if max_price else 0,
+            "min_price": float(min_price) if min_price else 0,
+        }
+    }
+
+
+# 需要修改现有的search_products方法，添加min_stock参数支持
+async def search_products(
+    db: Session,
+    keyword: Optional[str] = None,
+    category_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
+    status: Optional[int] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    is_hot: Optional[bool] = None,
+    is_new: Optional[bool] = None,
+    is_recommend: Optional[bool] = None,
+    has_group: Optional[bool] = None,
+    min_stock: Optional[int] = None,  # 新增参数
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    user_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 10
+):
+    """搜索商品"""
+    query = db.query(Product)
+    
+    # 基础过滤条件
+    if keyword:
+        query = query.filter(Product.name.contains(keyword))
+    
+    if category_id:
+        query = query.join(Product.categories).filter(
+            Product.categories.any(id=category_id)
+        )
+    
+    if merchant_id:
+        query = query.filter(Product.merchant_id == merchant_id)
+    
+    if status is not None:
+        query = query.filter(Product.status == status)
+    
+    if min_price is not None:
+        query = query.filter(Product.current_price >= min_price)
+    
+    if max_price is not None:
+        query = query.filter(Product.current_price <= max_price)
+    
+    if is_hot is not None:
+        query = query.filter(Product.is_hot == is_hot)
+    
+    if is_new is not None:
+        query = query.filter(Product.is_new == is_new)
+    
+    if is_recommend is not None:
+        query = query.filter(Product.is_recommend == is_recommend)
+    
+    if has_group is not None:
+        if has_group:
+            # 有团购活动的商品
+            query = query.filter(Product.groups.any())
+        else:
+            # 没有团购活动的商品
+            query = query.filter(~Product.groups.any())
+    
+    # 新增：库存过滤
+    if min_stock is not None:
+        if min_stock == -1:  # 库存不足 (<=10)
+            query = query.filter(Product.stock <= 10)
+        elif min_stock == -2:  # 已售罄 (=0)
+            query = query.filter(Product.stock == 0)
+        else:  # 库存 >= min_stock
+            query = query.filter(Product.stock >= min_stock)
+    
+    # 排序
+    if sort_by and sort_order:
+        if hasattr(Product, sort_by):
+            order_func = desc if sort_order == "desc" else asc
+            query = query.order_by(order_func(getattr(Product, sort_by)))
+    else:
+        query = query.order_by(desc(Product.created_at))
+    
+    # 获取总数
+    total = query.count()
+    
+    # 分页
+    products = query.offset(skip).limit(limit).all()
+    
+    return products, total

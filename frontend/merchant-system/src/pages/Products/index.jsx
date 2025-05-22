@@ -20,6 +20,7 @@ import ProductDetail from './components/ProductDetail.jsx';
 import ProductStats from './components/ProductStats.jsx';
 import BatchOperationForm from './components/BatchOperationForm.jsx';
 import { useRequest } from '../../hooks/useRequest';
+import { useAuth } from '../../hooks/useAuth';
 import { formatPrice, formatDateTime } from '../../utils/format';
 import { exportToExcel } from '../../utils/export';
 import './index.less';
@@ -67,12 +68,32 @@ const Products = () => {
   const searchInputRef = useRef(null);
   
   const { fetchData } = useRequest();
+  const { currentUser, isMerchant, getMerchantId } = useAuth();
+  
+  // 检查商户权限
+  useEffect(() => {
+    if (!isMerchant()) {
+      message.error('您需要商户权限才能访问商品管理');
+      return;
+    }
+  }, [currentUser, isMerchant]);
   
   // 加载商品分类
   const loadCategories = useCallback(async () => {
+    if (!isMerchant()) {
+      console.warn('非商户用户，跳过加载分类');
+      return;
+    }
+    
     try {
+      const merchantId = getMerchantId();
+      if (!merchantId) {
+        console.warn('未找到商户ID，跳过加载分类');
+        return;
+      }
+      
       const res = await fetchData({
-        url: '/api/v1/merchants/categories/all',
+        url: `/api/v1/categories`,
         method: 'GET'
       });
       setCategories(res || []);
@@ -80,10 +101,21 @@ const Products = () => {
       console.error('加载分类失败:', error);
       message.error('加载分类失败');
     }
-  }, [fetchData]);
+  }, [fetchData, isMerchant, getMerchantId]);
   
   // 加载商品列表
   const loadProducts = useCallback(async (params = {}) => {
+    if (!isMerchant()) {
+      console.warn('非商户用户，跳过加载商品');
+      return;
+    }
+    
+    const merchantId = getMerchantId();
+    if (!merchantId) {
+      message.error('未找到商户信息，无法加载商品');
+      return;
+    }
+    
     setLoading(true);
     try {
       const queryParams = {
@@ -105,8 +137,9 @@ const Products = () => {
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
       
+      // 使用商户专用的API路径
       const res = await fetchData({
-        url: `/api/v1/products?${queryString}`,
+        url: `/api/v1/products/merchant?${queryString}`,
         method: 'GET'
       });
       
@@ -121,17 +154,17 @@ const Products = () => {
       }
     } catch (error) {
       console.error('加载商品列表失败:', error);
-      message.error('加载商品列表失败');
+      message.error('加载商品列表失败: ' + (error.message || '请检查网络连接或联系管理员'));
     } finally {
       setLoading(false);
     }
-  }, [fetchData, pagination, searchParams, sorting]);
+  }, [fetchData, pagination, searchParams, sorting, isMerchant, getMerchantId]);
   
   // 初始加载
   useEffect(() => {
     loadProducts();
     loadCategories();
-  }, []);
+  }, [loadProducts, loadCategories]);
   
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {
@@ -260,6 +293,11 @@ const Products = () => {
   
   // 处理删除商品
   const handleDeleteProduct = async (id) => {
+    if (!isMerchant()) {
+      message.error('您需要商户权限才能删除商品');
+      return;
+    }
+    
     try {
       await fetchData({
         url: `/api/v1/products/${id}`,
@@ -269,12 +307,25 @@ const Products = () => {
       loadProducts();
     } catch (error) {
       console.error('删除商品失败:', error);
-      message.error('删除商品失败');
+      
+      // 判断错误类型提供更有用的错误信息
+      if (error.response?.status === 404) {
+        message.error('商品不存在或已被删除');
+      } else if (error.response?.status === 403) {
+        message.error('您没有权限删除此商品');
+      } else {
+        message.error('删除商品失败: ' + (error.message || '未知错误'));
+      }
     }
   };
   
   // 处理表单提交
   const handleFormSubmit = async (values) => {
+    if (!isMerchant()) {
+      message.error('您需要商户权限才能操作商品');
+      return;
+    }
+    
     try {
       if (selectedProduct) {
         // 更新商品
@@ -287,7 +338,7 @@ const Products = () => {
       } else {
         // 新增商品
         await fetchData({
-          url: '/api/v1/products',
+          url: `/api/v1/products`,
           method: 'POST',
           data: values
         });
@@ -303,6 +354,11 @@ const Products = () => {
   
   // 处理上下架状态切换
   const handleStatusChange = async (id, status) => {
+    if (!isMerchant()) {
+      message.error('您需要商户权限才能操作商品');
+      return;
+    }
+    
     try {
       await fetchData({
         url: `/api/v1/products/${id}`,
@@ -379,6 +435,9 @@ const Products = () => {
                 return fetchData({
                   url: `/api/v1/products/${id}`,
                   method: 'DELETE'
+                }).catch(err => {
+                  console.warn(`删除商品 ${id} 失败:`, err);
+                  return Promise.resolve({ error: true, id });
                 });
               case 'onSale':
                 return fetchData({
@@ -421,8 +480,16 @@ const Products = () => {
             }
           });
           
-          await Promise.all(promises);
-          message.success('批量操作成功');
+          const results = await Promise.allSettled(promises);
+          const successCount = results.filter(r => r.status === 'fulfilled' && !r.value?.error).length;
+          const failCount = results.length - successCount;
+          
+          if (failCount > 0) {
+            message.warning(`操作完成：${successCount} 个成功，${failCount} 个失败`);
+          } else {
+            message.success('批量操作成功');
+          }
+          
           setSelectedRowKeys([]);
           loadProducts();
         } catch (error) {
@@ -435,6 +502,8 @@ const Products = () => {
   
   // 导出商品数据
   const handleExportProducts = () => {
+    message.info('正在准备导出数据...');
+    
     // 获取当前筛选条件下的所有商品，不分页
     setLoading(true);
     
@@ -478,9 +547,14 @@ const Products = () => {
           更新时间: formatDateTime(item.updated_at)
         }));
         
-        // 导出Excel
-        exportToExcel(exportData, '商品列表');
-        message.success('导出成功');
+        try {
+          // 导出Excel
+          exportToExcel(exportData, '商品列表');
+          message.success('导出成功');
+        } catch (error) {
+          console.error('导出失败:', error);
+          message.error('导出失败，请先安装xlsx库或检查浏览器设置');
+        }
       }
     }).catch(error => {
       console.error('导出商品失败:', error);
