@@ -53,6 +53,72 @@ async def search_merchants(
     }
 
 
+from sqlalchemy import text  # 添加这个导入
+
+@router.get("/my", response_model=schemas.merchant.MerchantDetail)
+async def get_my_merchant(
+    current_user: schemas.user.User = Depends(deps.get_current_active_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """获取当前商户资料"""
+    # 检查用户是否有关联的商户ID
+    if not current_user.merchant_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="用户未关联商户账号"
+        )
+    
+    # 使用ORM查询获取商户基础信息
+    merchant = db.query(Merchant).filter(Merchant.id == current_user.merchant_id).first()
+    
+    # 记录调试信息
+    print(f"查询商户信息: 用户ID={current_user.id}, 商户ID={current_user.merchant_id}")
+    
+    # 检查商户是否存在
+    if not merchant:
+        # 记录异常情况，方便排查
+        print(f"警告: 用户ID={current_user.id}关联了不存在的商户ID={current_user.merchant_id}")
+        
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="关联的商户信息不存在，请联系系统管理员"
+        )
+    
+    # 检查商户状态
+    if merchant.status != 1:  # 1表示正常状态
+        status_messages = {
+            0: "商户正在审核中，暂时无法访问",
+            2: "商户已被禁用，请联系平台管理员"
+        }
+        
+        message = status_messages.get(merchant.status, "商户状态异常，无法访问")
+        print(f"商户状态检查失败: 商户ID={merchant.id}, 状态={merchant.status}, 消息={message}")
+        
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message
+        )
+    
+    # 获取商户详情（包括分类等相关信息）
+    merchant_detail = await merchant_service.get_merchant_detail(
+        db=db,
+        merchant_id=current_user.merchant_id
+    )
+    
+    # 成功处理，使用字典语法访问属性
+    try:
+        print(f"成功获取商户信息: ID={merchant_detail.get('id', '未知')}, 名称={merchant_detail.get('name', '未知')}")
+    except Exception as e:
+        # 容错处理，避免打印语句导致整个请求失败
+        print(f"打印商户信息时出错: {str(e)}")
+    
+    # 如果响应模型需要Pydantic模型对象，可以在这里进行转换
+    # merchant_detail = schemas.merchant.MerchantDetail(**merchant_detail)
+    
+    return merchant_detail
+
+    
+
 @router.get("/{merchant_id}", response_model=schemas.merchant.MerchantDetail)
 async def get_merchant(
     merchant_id: int = Path(..., ge=1),
@@ -86,50 +152,7 @@ async def create_merchant(
 
 
 # backend/app/api/api_v1/endpoints/merchants.py
-@router.get("/my", response_model=schemas.merchant.MerchantDetail)
-async def get_my_merchant(
-    current_user: schemas.user.User = Depends(deps.get_current_active_user),
-    db: Session = Depends(deps.get_db)
-) -> Any:
-    """获取当前商户资料"""
-    # 检查用户是否有关联的商户ID
-    if not current_user.merchant_id:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="用户未关联商户账号"
-        )
-    
-    # 获取商户信息并添加详细错误处理
-    merchant = db.query(Merchant).filter(Merchant.id == current_user.merchant_id).first()
-    if not merchant:
-        # 记录异常情况，便于排查
-        print(f"错误：用户ID={current_user.id}关联了不存在的商户ID={current_user.merchant_id}")
-        
-        # 更新用户记录，清除无效的商户关联
-        current_user.merchant_id = None
-        db.commit()
-        
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="关联的商户信息不存在，已清除无效关联"
-        )
-    
-    # 检查商户状态
-    if merchant.status != 1:  # 假设1是正常状态
-        status_messages = {
-            0: "商户正在审核中，暂时无法访问",
-            2: "商户已被禁用，请联系平台管理员"
-        }
-        
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=status_messages.get(merchant.status, "商户状态异常，无法访问")
-        )
-    
-    return await merchant_service.get_merchant_detail(
-        db=db,
-        merchant_id=current_user.merchant_id
-    )
+
 
 
 
