@@ -1,12 +1,12 @@
 // src/pages/Products/index.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  Card, Table, Button, Input, Space, Tag, Tooltip, Popconfirm, 
+import {
+  Card, Table, Button, Input, Space, Tag, Tooltip, Popconfirm,
   message, Select, Row, Col, Badge, Image, Drawer, Tabs,
   Switch, Menu, Dropdown, Statistic, Alert, Modal, Typography,
   Form, Divider, Descriptions
 } from 'antd';
-import { 
+import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   SearchOutlined, ReloadOutlined, UploadOutlined, DownloadOutlined,
   AppstoreOutlined, BarsOutlined, FileExcelOutlined, SortAscendingOutlined,
@@ -65,10 +65,10 @@ const Products = () => {
   const [sorting, setSorting] = useState({ field: 'created_at', order: 'desc' });
   const [activeTab, setActiveTab] = useState('all');
   const searchInputRef = useRef(null);
-  
+
   const { fetchData } = useRequest();
   const { currentUser, isMerchant, getMerchantId } = useAuth();
-  
+
   // 检查商户权限
   useEffect(() => {
     if (!isMerchant()) {
@@ -76,63 +76,57 @@ const Products = () => {
       return;
     }
   }, [currentUser, isMerchant]);
-  
+
   // 加载商品分类
   const loadCategories = useCallback(async () => {
     if (!isMerchant()) {
       console.warn('非商户用户，跳过加载分类');
       return;
     }
-    
+
     try {
       const merchantId = getMerchantId();
       if (!merchantId) {
         console.warn('未找到商户ID，跳过加载分类');
         return;
       }
-      
-      // 尝试多个API路径
-      let res = null;
-      try {
-        res = await fetchData({
-          url: `/api/v1/merchants/categories/all`,
-          method: 'GET',
-          showError: false
-        });
-      } catch (error) {
-        console.warn('主要分类API失败，尝试备用API');
-        try {
-          res = await fetchData({
-            url: `/api/v1/merchants/categories`,
-            method: 'GET',
-            showError: false
-          });
-        } catch (backupError) {
-          console.warn('备用分类API也失败，使用空数组');
-          res = [];
-        }
+
+      // 修改API路径，使用正确的分类接口
+      const res = await fetchData({
+        url: `/api/v1/merchants/categories/all`, // 或者使用 `/api/v1/categories`
+        method: 'GET',
+        showError: false // 不显示错误提示，避免干扰用户体验
+      });
+
+      console.log('加载的分类数据:', res); // 添加调试日志
+
+      if (res && Array.isArray(res)) {
+        setCategories(res);
+        console.log('分类数据设置成功，数量:', res.length);
+      } else {
+        console.warn('分类数据格式不正确:', res);
+        setCategories([]);
       }
-      
-      setCategories(res || []);
     } catch (error) {
       console.error('加载分类失败:', error);
-      setCategories([]);
+      message.error('加载分类失败，请刷新页面重试');
+      setCategories([]); // 确保设置为空数组
     }
   }, [fetchData, isMerchant, getMerchantId]);
-  
+
   // 加载商品列表
   const loadProducts = useCallback(async (params = {}) => {
     if (!isMerchant()) {
       console.warn('非商户用户，跳过加载商品');
       return;
     }
-    
+
     const merchantId = getMerchantId();
     if (!merchantId) {
       message.error('未找到商户信息，无法加载商品');
       return;
     }
-    
+
     setLoading(true);
     try {
       const queryParams = {
@@ -143,27 +137,27 @@ const Products = () => {
         ...searchParams,
         ...params
       };
-      
+
       // 移除未定义的参数和空字符串参数
       Object.keys(queryParams).forEach(key => {
         if (queryParams[key] === undefined || queryParams[key] === '') {
           delete queryParams[key];
         }
       });
-      
+
       // 构建查询字符串
       const queryString = Object.keys(queryParams)
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
-      
+
       console.log('请求URL:', `/api/v1/products/merchant?${queryString}`);
-      
+
       // 使用商户专用的API路径
       const res = await fetchData({
         url: `/api/v1/products/merchant?${queryString}`,
         method: 'GET'
       });
-      
+
       if (res?.data) {
         setProductList(res.data.items || []);
         setPagination({
@@ -180,24 +174,24 @@ const Products = () => {
       setLoading(false);
     }
   }, [fetchData, pagination, searchParams, sorting, isMerchant, getMerchantId]);
-  
+
   // 初始加载
   useEffect(() => {
     loadProducts();
     loadCategories();
   }, []);
-  
+
   // 处理表格翻页
   const handleTableChange = (pagination, filters, sorter) => {
     setPagination(pagination);
-    
+
     if (sorter.field && sorter.order) {
       setSorting({
         field: sorter.field,
         order: sorter.order === 'descend' ? 'desc' : 'asc'
       });
     }
-    
+
     loadProducts({
       page: pagination.current,
       page_size: pagination.pageSize,
@@ -205,13 +199,13 @@ const Products = () => {
       sort_order: sorter.order === 'descend' ? 'desc' : 'asc'
     });
   };
-  
+
   // 处理搜索
   const handleSearch = () => {
     setPagination({ ...pagination, current: 1 });
     loadProducts({ page: 1 });
   };
-  
+
   // 处理重置搜索
   const handleReset = () => {
     setSearchParams({
@@ -228,18 +222,18 @@ const Products = () => {
     });
     setPagination({ ...pagination, current: 1 });
     setSorting({ field: 'created_at', order: 'desc' });
-    loadProducts({ 
+    loadProducts({
       page: 1,
       sort_by: 'created_at',
       sort_order: 'desc'
     });
   };
-  
+
   // 处理切换标签页
   const handleTabChange = (key) => {
     setActiveTab(key);
     let params = {};
-    
+
     switch (key) {
       case 'onSale':
         params = { status: 1 };
@@ -266,12 +260,12 @@ const Products = () => {
         params = {};
         break;
     }
-    
+
     setSearchParams(params);
     setPagination({ ...pagination, current: 1 });
     loadProducts({ page: 1, ...params });
   };
-  
+
   // 获取商品数量统计
   const getProductsCount = () => {
     const productStats = [
@@ -284,41 +278,74 @@ const Products = () => {
       { key: 'lowStock', count: productList.filter(p => p.stock < 10).length },
       { key: 'hasGroup', count: productList.filter(p => p.has_group).length }
     ];
-    
+
     return productStats.find(stat => stat.key === activeTab)?.count || 0;
   };
-  
+
   // 处理新增商品
   const handleAddProduct = () => {
     setSelectedProduct(null);
     setFormVisible(true);
   };
-  
+
   // 处理编辑商品
-  const handleEditProduct = (record) => {
-    setSelectedProduct(record);
-    setFormVisible(true);
+  const handleEditProduct = async (record) => {
+    try {
+      console.log('开始编辑商品:', record);
+
+      // 确保分类数据已加载
+      if (categories.length === 0) {
+        console.log('分类数据为空，重新加载...');
+        await loadCategories();
+      }
+
+      // 如果需要获取完整的商品详情，可以调用API
+      let productDetail = record;
+
+      // 可选：获取完整商品详情（包含完整的分类信息）
+      if (record.id) {
+        try {
+          const detailRes = await fetchData({
+            url: `/api/v1/products/${record.id}`,
+            method: 'GET'
+          });
+
+          if (detailRes) {
+            productDetail = detailRes;
+            console.log('获取到的商品详情:', productDetail);
+          }
+        } catch (error) {
+          console.warn('获取商品详情失败，使用列表数据:', error);
+        }
+      }
+
+      setSelectedProduct(productDetail);
+      setFormVisible(true);
+    } catch (error) {
+      console.error('编辑商品失败:', error);
+      message.error('加载商品信息失败');
+    }
   };
-  
+
   // 处理查看商品详情
   const handleViewProduct = (record) => {
     setSelectedProduct(record);
     setDetailVisible(true);
   };
-  
+
   // 处理查看商品统计
   const handleViewStats = (record) => {
     setSelectedProduct(record);
     setStatsVisible(true);
   };
-  
+
   // 处理删除商品
   const handleDeleteProduct = async (id) => {
     if (!isMerchant()) {
       message.error('您需要商户权限才能删除商品');
       return;
     }
-    
+
     try {
       await fetchData({
         url: `/api/v1/products/${id}`,
@@ -328,7 +355,7 @@ const Products = () => {
       loadProducts();
     } catch (error) {
       console.error('删除商品失败:', error);
-      
+
       // 判断错误类型提供更有用的错误信息
       if (error.response?.status === 404) {
         message.error('商品不存在或已被删除');
@@ -339,14 +366,14 @@ const Products = () => {
       }
     }
   };
-  
+
   // 处理表单提交
   const handleFormSubmit = async (values) => {
     if (!isMerchant()) {
       message.error('您需要商户权限才能操作商品');
       return;
     }
-    
+
     try {
       if (selectedProduct) {
         // 更新商品
@@ -372,14 +399,14 @@ const Products = () => {
       message.error('保存商品失败: ' + (error.message || '未知错误'));
     }
   };
-  
+
   // 处理上下架状态切换
   const handleStatusChange = async (id, status) => {
     if (!isMerchant()) {
       message.error('您需要商户权限才能操作商品');
       return;
     }
-    
+
     try {
       await fetchData({
         url: `/api/v1/products/${id}`,
@@ -393,7 +420,7 @@ const Products = () => {
       message.error('更新商品状态失败');
     }
   };
-  
+
   // 处理热门标签切换
   const handleHotChange = async (id, isHot) => {
     try {
@@ -409,7 +436,7 @@ const Products = () => {
       message.error('更新商品标签失败');
     }
   };
-  
+
   // 处理新品标签切换
   const handleNewChange = async (id, isNew) => {
     try {
@@ -425,7 +452,7 @@ const Products = () => {
       message.error('更新商品标签失败');
     }
   };
-  
+
   // 处理推荐标签切换
   const handleRecommendChange = async (id, isRecommend) => {
     try {
@@ -441,7 +468,7 @@ const Products = () => {
       message.error('更新商品标签失败');
     }
   };
-  
+
   // 处理批量操作
   const handleBatchOperation = (operation, data) => {
     Modal.confirm({
@@ -500,17 +527,17 @@ const Products = () => {
                 return Promise.resolve();
             }
           });
-          
+
           const results = await Promise.allSettled(promises);
           const successCount = results.filter(r => r.status === 'fulfilled' && !r.value?.error).length;
           const failCount = results.length - successCount;
-          
+
           if (failCount > 0) {
             message.warning(`操作完成：${successCount} 个成功，${failCount} 个失败`);
           } else {
             message.success('批量操作成功');
           }
-          
+
           setSelectedRowKeys([]);
           loadProducts();
         } catch (error) {
@@ -520,30 +547,30 @@ const Products = () => {
       }
     });
   };
-  
+
   // 导出商品数据
   const handleExportProducts = () => {
     message.info('正在准备导出数据...');
-    
+
     // 获取当前筛选条件下的所有商品，不分页
     setLoading(true);
-    
+
     // 构建查询参数 - 去掉分页参数，保留筛选参数
     const queryParams = {
       ...searchParams,
       page_size: 1000 // 设置一个较大的值，以便获取所有符合条件的商品
     };
-    
+
     // 移除未定义的参数
-    Object.keys(queryParams).forEach(key => 
+    Object.keys(queryParams).forEach(key =>
       queryParams[key] === undefined && delete queryParams[key]
     );
-    
+
     // 构建查询字符串
     const queryString = Object.keys(queryParams)
       .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
       .join('&');
-    
+
     fetchData({
       url: `/api/v1/products?${queryString}`,
       method: 'GET'
@@ -567,7 +594,7 @@ const Products = () => {
           创建时间: formatDateTime(item.created_at),
           更新时间: formatDateTime(item.updated_at)
         }));
-        
+
         try {
           // 导出Excel
           exportToExcel(exportData, '商品列表');
@@ -584,13 +611,13 @@ const Products = () => {
       setLoading(false);
     });
   };
-  
+
   // 表格多选配置
   const rowSelection = {
     selectedRowKeys,
     onChange: (keys) => setSelectedRowKeys(keys),
   };
-  
+
   // 批量操作下拉菜单
   const batchOperationMenu = (
     <Menu>
@@ -620,7 +647,7 @@ const Products = () => {
       </Menu.Item>
     </Menu>
   );
-  
+
   // 表格列配置
   const columns = [
     {
@@ -643,8 +670,8 @@ const Products = () => {
       key: 'info',
       render: (_, record) => (
         <div>
-          <a 
-            href="#" 
+          <a
+            href="#"
             onClick={(e) => {
               e.preventDefault();
               handleViewProduct(record);
@@ -760,26 +787,26 @@ const Products = () => {
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="查看详情">
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<EyeOutlined />} 
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
               onClick={() => handleViewProduct(record)}
             />
           </Tooltip>
           <Tooltip title="编辑商品">
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<EditOutlined />} 
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
               onClick={() => handleEditProduct(record)}
             />
           </Tooltip>
           <Tooltip title="统计分析">
-            <Button 
-              type="text" 
-              size="small" 
-              icon={<PieChartOutlined />} 
+            <Button
+              type="text"
+              size="small"
+              icon={<PieChartOutlined />}
               onClick={() => handleViewStats(record)}
             />
           </Tooltip>
@@ -791,11 +818,11 @@ const Products = () => {
               okText="确定"
               cancelText="取消"
             >
-              <Button 
-                type="text" 
-                size="small" 
-                danger 
-                icon={<DeleteOutlined />} 
+              <Button
+                type="text"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
               />
             </Popconfirm>
           </Tooltip>
@@ -839,7 +866,7 @@ const Products = () => {
       label: '参与团购',
     },
   ];
-  
+
   // 渲染函数
   return (
     <div className="product-list-page">
@@ -868,8 +895,8 @@ const Products = () => {
                 导出
               </Button>
             </Tooltip>
-            <Button 
-              type="primary" 
+            <Button
+              type="primary"
               icon={<PlusOutlined />}
               onClick={handleAddProduct}
             >
@@ -878,7 +905,7 @@ const Products = () => {
           </Space>
         }
       />
-      
+
       <Card className="search-card">
         <Row gutter={16}>
           <Col xs={24} sm={12} md={8} lg={6}>
@@ -893,7 +920,7 @@ const Products = () => {
               />
             </div>
           </Col>
-          
+
           <Col xs={24} sm={12} md={12} lg={12}>
             <Row gutter={12}>
               <Col span={12}>
@@ -923,23 +950,23 @@ const Products = () => {
               </Col>
             </Row>
           </Col>
-          
+
           <Col xs={24} sm={24} md={4} lg={6} className="search-buttons">
             <Space>
               <Button onClick={handleReset} icon={<ReloadOutlined />}>
                 重置
               </Button>
-              <Button 
-                type="link" 
+              <Button
+                type="link"
                 onClick={() => setAdvancedFilter(!advancedFilter)}
               >
-                {advancedFilter ? '收起筛选' : '高级筛选'} 
+                {advancedFilter ? '收起筛选' : '高级筛选'}
                 <FilterOutlined />
               </Button>
             </Space>
           </Col>
         </Row>
-        
+
         {advancedFilter && (
           <div className="advanced-filter">
             <Divider style={{ margin: '12px 0' }} />
@@ -1031,7 +1058,7 @@ const Products = () => {
           </div>
         )}
       </Card>
-      
+
       <Card
         title={
           <Space>
@@ -1130,7 +1157,7 @@ const Products = () => {
           </div>
         )}
       </Card>
-      
+
       {/* 商品表单抽屉 */}
       <Drawer
         title={selectedProduct ? "编辑商品" : "新增商品"}
@@ -1149,7 +1176,7 @@ const Products = () => {
           />
         )}
       </Drawer>
-      
+
       {/* 商品详情抽屉 */}
       <Drawer
         title="商品详情"
@@ -1170,7 +1197,7 @@ const Products = () => {
           />
         )}
       </Drawer>
-      
+
       {/* 统计分析抽屉 */}
       <Drawer
         title="商品统计分析"
@@ -1186,7 +1213,7 @@ const Products = () => {
           />
         )}
       </Drawer>
-      
+
       {/* 批量操作表单 */}
       <Modal
         title="批量操作"
