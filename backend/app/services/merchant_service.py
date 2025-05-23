@@ -1,661 +1,874 @@
+# backend/app/services/product_service.py
+
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, desc, asc, text
+from sqlalchemy import func, desc, asc, and_, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.crud import crud_merchant, crud_category
-from app.models.merchant import Merchant, MerchantCategory
-from app.models.category import Category 
-from app.models.product import Product
-from app.schemas.merchant import MerchantCreate, MerchantUpdate, CategoryCreate, CategoryUpdate
-from app.core.utils import calculate_distance
-from app.models.user import User
+from app.crud import crud_product, crud_product_image, crud_product_specification
+from app.models.product import (
+    Product, ProductImage, ProductSpecification, product_categories
+)
+from app.models.merchant import Merchant, Category
+from app.models.user import Favorite
+from app.schemas.product import (
+    ProductCreate, ProductUpdate, ProductImageCreate, ProductSpecificationCreate
+)
+from app.models.group import Group
+from app.models.order import Order, OrderItem
 
 
-async def get_merchant(db: Session, merchant_id: int) -> Merchant:
-    """获取单个商户详情"""
-    merchant = crud_merchant.get(db, id=merchant_id)
-    if not merchant:
-        raise HTTPException(status_code=404, detail="商户不存在")
-    return merchant
+def safe_convert_orm_to_dict(product, user_id: Optional[int] = None, db: Session = None) -> Dict:
+    """
+    安全地将Product ORM对象转换为字典
+    这是一个独立的函数，确保所有地方都使用相同的转换逻辑
+    """
+    
+    # 安全的数据处理函数
+    def safe_int(value, default=0):
+        try:
+            return int(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_float(value, default=0.0):
+        try:
+            return float(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_str(value, default=""):
+        return str(value) if value is not None else default
+    
+    def safe_bool(value, default=False):
+        try:
+            return bool(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    def safe_datetime(value):
+        if isinstance(value, datetime):
+            return value
+        return None
 
-
-async def get_merchant_detail(db: Session, merchant_id: int) -> Dict:
-    """获取商户详细信息"""
     try:
-        # 获取商户信息，包含分类关联
-        merchant = db.query(Merchant).options(
-            joinedload(Merchant.categories).joinedload(MerchantCategory.category)
-        ).filter(Merchant.id == merchant_id).first()
-        
-        if not merchant:
-            raise HTTPException(status_code=404, detail="商户不存在")
-        
-        # 记录调试信息
-        print(f"从数据库获取的商户信息 - ID: {merchant.id}, 名称: {merchant.name}")
-        
-        # 确保地理坐标和服务半径有默认值
-        latitude = merchant.latitude or 30.0
-        longitude = merchant.longitude or 120.0
-        service_radius = merchant.service_radius or 5.0
-        
-        # 确保边界坐标存在
-        north_boundary = merchant.north_boundary
-        south_boundary = merchant.south_boundary
-        east_boundary = merchant.east_boundary
-        west_boundary = merchant.west_boundary
-        
-        # 如果边界坐标缺失，计算默认值
-        if not north_boundary or not south_boundary or not east_boundary or not west_boundary:
+        # 获取商户名称
+        merchant_name = ""
+        if hasattr(product, 'merchant') and product.merchant:
+            merchant_name = safe_str(product.merchant.name)
+        elif db and product.merchant_id:
             try:
-                import math
-                # 转换为弧度
-                lat_rad = latitude * math.pi / 180
-                
-                # 计算1度经纬度对应的公里数
-                km_per_lat_degree = 111.32  # 纬度每度约111.32公里
-                km_per_lng_degree = 111.32 * math.cos(lat_rad)  # 经度随纬度变化
-                
-                # 计算边界坐标
-                north_boundary = latitude + (service_radius / km_per_lat_degree)
-                south_boundary = latitude - (service_radius / km_per_lat_degree)
-                east_boundary = longitude + (service_radius / km_per_lng_degree)
-                west_boundary = longitude - (service_radius / km_per_lng_degree)
-                
-                # 更新到数据库
-                merchant.north_boundary = north_boundary
-                merchant.south_boundary = south_boundary
-                merchant.east_boundary = east_boundary
-                merchant.west_boundary = west_boundary
-                db.commit()
+                merchant = db.query(Merchant).filter(Merchant.id == product.merchant_id).first()
+                if merchant:
+                    merchant_name = safe_str(merchant.name)
             except Exception as e:
-                print(f"计算边界坐标出错: {e}")
-                # 设置默认值避免返回None
-                north_boundary = latitude + 0.05
-                south_boundary = latitude - 0.05
-                east_boundary = longitude + 0.05
-                west_boundary = longitude - 0.05
+                print(f"获取商户信息失败: {e}")
         
-        # 获取商品数量
-        product_count = db.query(func.count(Product.id)).filter(
-            Product.merchant_id == merchant_id
-        ).scalar() or 0
+        # 获取商品分类
+        categories_data = []
+        try:
+            if db:
+                categories = db.query(Category).join(
+                    product_categories,
+                    product_categories.c.category_id == Category.id
+                ).filter(
+                    product_categories.c.product_id == product.id
+                ).all()
+                
+                for category in categories:
+                    categories_data.append({
+                        "id": category.id,
+                        "name": safe_str(category.name),
+                        "icon": safe_str(category.icon)
+                    })
+        except Exception as e:
+            print(f"获取商品分类失败: {e}")
+            categories_data = []
         
-        # 构建响应数据，确保所有字段都有值
-        merchant_data = {
-            "id": merchant.id,
-            "name": merchant.name,
-            "logo": merchant.logo or "/static/images/merchants/default-logo.png",
-            "cover": merchant.cover or "/static/images/merchants/default-cover.jpg",
-            "description": merchant.description or "",
-            "license_number": merchant.license_number or "",
-            "license_image": merchant.license_image or "",
-            "contact_name": merchant.contact_name or "",
-            "contact_phone": merchant.contact_phone or "",
-            "province": merchant.province or "",
-            "city": merchant.city or "",
-            "district": merchant.district or "",
-            "address": merchant.address or "",
-            "latitude": latitude,
-            "longitude": longitude,
-            "business_hours": merchant.business_hours or "09:00-18:00",
-            "status": merchant.status,
-            "rating": merchant.rating or 5.0,
-            "commission_rate": merchant.commission_rate or 0.0,
-            "balance": merchant.balance or 0.0,
-            "product_count": product_count,
-            "categories": [],
-            "created_at": merchant.created_at,
-            "updated_at": merchant.updated_at,
+        # 检查是否收藏
+        is_favorite = False
+        favorite_count = 0
+        try:
+            if user_id and db:
+                favorite = db.query(Favorite).filter(
+                    Favorite.user_id == user_id,
+                    Favorite.product_id == product.id
+                ).first()
+                is_favorite = bool(favorite)
             
-            # 添加服务半径字段
-            "service_radius": service_radius,
-            
-            # 添加边界坐标字段
-            "north_boundary": north_boundary,
-            "south_boundary": south_boundary,
-            "east_boundary": east_boundary,
-            "west_boundary": west_boundary
+            if db:
+                favorite_count = db.query(func.count(Favorite.id)).filter(
+                    Favorite.product_id == product.id
+                ).scalar() or 0
+        except Exception as e:
+            print(f"检查收藏状态失败: {e}")
+            is_favorite = False
+            favorite_count = 0
+        
+        # 检查是否有团购
+        has_group = False
+        try:
+            if db:
+                active_group = db.query(Group).filter(
+                    Group.product_id == product.id,
+                    Group.status == 1,  # 进行中
+                    Group.end_time > datetime.now()
+                ).first()
+                has_group = bool(active_group)
+        except Exception as e:
+            print(f"检查团购状态失败: {e}")
+            has_group = False
+        
+        # 🔥 关键：确保返回的是纯字典，不包含任何ORM对象
+        return {
+            "id": safe_int(product.id),
+            "merchant_id": safe_int(product.merchant_id),
+            "merchant_name": merchant_name,
+            "name": safe_str(product.name),
+            "thumbnail": safe_str(product.thumbnail),
+            "original_price": safe_float(product.original_price),
+            "current_price": safe_float(product.current_price),
+            "group_price": safe_float(product.group_price) if product.group_price is not None else None,
+            "stock": safe_int(product.stock),
+            "unit": safe_str(product.unit, "件"),
+            "description": safe_str(product.description),
+            "sales": safe_int(product.sales),
+            "views": safe_int(product.views),
+            "status": safe_int(product.status, 1),
+            "sort_order": safe_int(product.sort_order),
+            "is_hot": safe_bool(product.is_hot),
+            "is_new": safe_bool(product.is_new, True),
+            "is_recommend": safe_bool(product.is_recommend),
+            "has_group": has_group,
+            "favorite_count": safe_int(favorite_count),
+            "is_favorite": is_favorite,
+            "categories": categories_data,
+            "created_at": safe_datetime(product.created_at),
+            "updated_at": safe_datetime(product.updated_at)
         }
         
-        # 获取分类信息
-        categories = []
-        for mc in merchant.categories:
-            if mc.category:
-                categories.append({
-                    "id": mc.category.id,
-                    "name": mc.category.name,
-                    "icon": mc.category.icon or "",
-                    "created_at": mc.category.created_at,
-                    "updated_at": mc.category.updated_at,
-                    "sort_order": mc.category.sort_order or 0,
-                    "is_active": mc.category.is_active
-                })
-        merchant_data["categories"] = categories
-        
-        return merchant_data
     except Exception as e:
-        print(f"获取商户详情时出错: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"获取商户详情时出错: {str(e)}")
+        print(f"转换商品ORM对象失败: {e}")
+        # 返回一个最基本的字典，避免序列化错误
+        return {
+            "id": getattr(product, 'id', 0),
+            "merchant_id": getattr(product, 'merchant_id', 0),
+            "merchant_name": "",
+            "name": getattr(product, 'name', '未知商品'),
+            "thumbnail": getattr(product, 'thumbnail', ''),
+            "original_price": 0.0,
+            "current_price": 0.0,
+            "group_price": None,
+            "stock": 0,
+            "unit": "件",
+            "description": "",
+            "sales": 0,
+            "views": 0,
+            "status": 1,
+            "sort_order": 0,
+            "is_hot": False,
+            "is_new": True,
+            "is_recommend": False,
+            "has_group": False,
+            "favorite_count": 0,
+            "is_favorite": False,
+            "categories": [],
+            "created_at": None,
+            "updated_at": None
+        }
 
 
-async def create_merchant(db: Session, merchant_data: MerchantCreate, user_id: int) -> Merchant:
-    """创建商户"""
-    # 检查用户是否已有商户
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    
-    if user.merchant_id:
-        raise HTTPException(status_code=400, detail="用户已关联商户")
-    
-    # 创建商户
-    merchant = crud_merchant.create(db, obj_in=merchant_data)
-    
-    # 关联分类
-    if merchant_data.category_ids:
-        for category_id in merchant_data.category_ids:
-            category = crud_category.get(db, id=category_id)
-            if category:
-                merchant_category = MerchantCategory(
-                    merchant_id=merchant.id,
-                    category_id=category_id
-                )
-                db.add(merchant_category)
-        db.commit()
-    
-    # 关联用户
-    user.merchant_id = merchant.id
-    db.commit()
-    
-    return merchant
-
-
-import math
-import traceback
-from typing import Optional, Dict, Any, Union
-from datetime import datetime
-from fastapi import HTTPException, status
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-from pydantic import ValidationError
-
-from app.crud import crud_merchant
-from app.models.merchant import Merchant, MerchantCategory
-from app.schemas.merchant import MerchantUpdate
-from app.services.location_service import calculate_boundary_points
-
-async def update_merchant(
-    db: Session, 
-    merchant_id: int, 
-    merchant_data: Union[MerchantUpdate, Dict[str, Any]], 
-    user_id: Optional[int] = None,
-    is_admin: bool = False
-) -> Dict:
-    """
-    更新商户信息
-    
-    Args:
-        db: 数据库会话
-        merchant_id: 商户ID
-        merchant_data: 更新数据，可以是MerchantUpdate对象或字典
-        user_id: 操作用户ID（可选）
-        is_admin: 是否管理员操作
-        
-    Returns:
-        更新后的商户详情
-    
-    Raises:
-        HTTPException: 权限错误、参数验证错误或数据库操作错误
-    """
-    # 调试日志
-    print(f"更新商户数据，商户ID: {merchant_id}")
-    if isinstance(merchant_data, dict):
-        print(f"接收到的更新数据(字典): {merchant_data}")
-    else:
-        print(f"接收到的更新数据(模型): {merchant_data.dict(exclude_unset=True)}")
-    
-    # 获取商户
-    merchant = crud_merchant.get(db, id=merchant_id)
-    if not merchant:
-        raise HTTPException(status_code=404, detail="商户不存在")
-    
-    # 添加管理员检查：如果是管理员调用，则跳过权限检查
-    if not is_admin:  # 非管理员才检查权限
-        # 检查用户是否有权限更新此商户（只有商户自己可以更新）
-        if user_id:
-            from app.models.user import User
-            user = db.query(User).filter(User.id == user_id).first()
-            if not user or user.merchant_id != merchant_id:
-                raise HTTPException(status_code=403, detail="没有权限更新其他商户的信息")
-    
-    # 记录更新前的服务半径值，用于验证
-    original_radius = merchant.service_radius
-    print(f"更新前的服务半径值: {original_radius}")
-    
-    # 处理更新数据
-    update_data = merchant_data
-    if not isinstance(merchant_data, dict):
-        try:
-            update_data = merchant_data.dict(exclude_unset=True)
-        except Exception as e:
-            print(f"转换更新数据时出错: {str(e)}")
-            update_data = merchant_data  # 保持原样
-    
-    # 特别处理服务半径字段 - 明确支持浮点数
-    new_radius = None
-    if 'service_radius' in update_data and update_data['service_radius'] is not None:
-        try:
-            # 明确转换为浮点数，允许"3.5"这样的字符串
-            new_radius = float(update_data['service_radius'])
-            print(f"服务半径值转换成功: {new_radius}, 类型: {type(new_radius)}")
-            update_data['service_radius'] = new_radius
-            
-            # 直接更新模型实例，避免ORM问题
-            merchant.service_radius = new_radius
-        except (ValueError, TypeError) as e:
-            print(f"服务半径转换错误: {e}, 原始值: {update_data['service_radius']}, 类型: {type(update_data['service_radius'])}")
-            raise HTTPException(
-                status_code=422, 
-                detail=f"服务半径必须是数值类型，当前值: {update_data['service_radius']}"
-            )
-    
-    # 更新商户基本信息
-    try:
-        updated_merchant = crud_merchant.update(db, db_obj=merchant, obj_in=update_data)
-        print(f"基本信息更新成功，服务半径: {updated_merchant.service_radius}")
-    except Exception as e:
-        print(f"商户更新失败: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"商户更新失败: {str(e)}")
-    
-    # 验证服务半径是否正确更新
-    if 'service_radius' in update_data and update_data['service_radius'] is not None:
-        print(f"更新后的服务半径: {updated_merchant.service_radius}")
-        if updated_merchant.service_radius != update_data['service_radius']:
-            print(f"警告：服务半径更新失败！期望值: {update_data['service_radius']}, 实际值: {updated_merchant.service_radius}")
-            # 强制更新服务半径 - 使用原始SQL
-            try:
-                db.execute(
-                    text("UPDATE merchants SET service_radius = :radius WHERE id = :id"),
-                    {"radius": float(update_data['service_radius']), "id": merchant_id}
-                )
-                db.commit()
-                print(f"通过原始SQL更新服务半径成功")
-                # 重新获取商户以确认更新
-                updated_merchant = crud_merchant.get(db, id=merchant_id)
-                print(f"最终服务半径值: {updated_merchant.service_radius}")
-                
-                # 更新 new_radius 值
-                new_radius = float(update_data['service_radius'])
-            except Exception as e:
-                print(f"SQL更新服务半径失败: {str(e)}")
-    
-    # 更新分类关联
-    if hasattr(merchant_data, 'category_ids') and merchant_data.category_ids is not None:
-        category_ids = merchant_data.category_ids
-        # 删除旧的关联
-        db.query(MerchantCategory).filter(
-            MerchantCategory.merchant_id == merchant_id
-        ).delete()
-        
-        # 添加新的关联，并验证分类ID是否存在
-        from app.models.category import Category
-        for category_id in category_ids:
-            category = db.query(Category).filter(Category.id == category_id).first()
-            if not category:
-                raise HTTPException(status_code=404, detail=f"分类ID {category_id} 不存在")
-            merchant_category = MerchantCategory(
-                merchant_id=merchant_id,
-                category_id=category_id
-            )
-            db.add(merchant_category)
-        db.commit()
-    elif isinstance(update_data, dict) and 'category_ids' in update_data and update_data['category_ids'] is not None:
-        # 删除旧的关联
-        db.query(MerchantCategory).filter(
-            MerchantCategory.merchant_id == merchant_id
-        ).delete()
-        
-        # 添加新的关联
-        from app.models.category import Category
-        for category_id in update_data['category_ids']:
-            category = db.query(Category).filter(Category.id == category_id).first()
-            if not category:
-                raise HTTPException(status_code=404, detail=f"分类ID {category_id} 不存在")
-            merchant_category = MerchantCategory(
-                merchant_id=merchant_id,
-                category_id=category_id
-            )
-            db.add(merchant_category)
-        db.commit()
-    
-    # 计算服务区域边界坐标
-    from app.services.merchant_service import get_merchant_detail
-    merchant_with_details = await get_merchant_detail(db=db, merchant_id=merchant_id)
-    
-    # 如果更新了服务半径或位置信息，计算新的边界
-    update_coordinates = False
-    if 'latitude' in update_data:
-        update_coordinates = True
-    if 'longitude' in update_data:
-        update_coordinates = True
-    if 'service_radius' in update_data:
-        update_coordinates = True
-    
-    if update_coordinates and updated_merchant.latitude and updated_merchant.longitude and updated_merchant.service_radius:
-        print("\n开始计算新的服务区域边界坐标")
-        
-        boundary_data = calculate_boundary_points(
-            updated_merchant.latitude,
-            updated_merchant.longitude,
-            updated_merchant.service_radius
-        )
-        
-        print(f"服务区中心点: ({updated_merchant.latitude}, {updated_merchant.longitude})")
-        print(f"服务半径: {updated_merchant.service_radius} 公里")
-        
-        if boundary_data and boundary_data.get("valid", False):
-            boundaries = boundary_data.get("boundaries", {})
-            
-            # 更新商户数据库记录的边界坐标
-            try:
-                updated_merchant.north_boundary = boundaries.get("north")
-                updated_merchant.south_boundary = boundaries.get("south")
-                updated_merchant.east_boundary = boundaries.get("east")
-                updated_merchant.west_boundary = boundaries.get("west")
-                db.commit()
-                
-                print(f"北边界: {boundaries.get('north')}°")
-                print(f"南边界: {boundaries.get('south')}°")
-                print(f"东边界: {boundaries.get('east')}°")
-                print(f"西边界: {boundaries.get('west')}°")
-                print(f"覆盖面积: 约 {boundary_data.get('coverage_area_km2')} 平方公里")
-                print("边界坐标已更新")
-            except Exception as e:
-                print(f"更新边界坐标时出错: {str(e)}")
-                traceback.print_exc()
-        else:
-            print(f"边界计算错误: {boundary_data.get('error', '未知错误')}")
-        
-        print("服务区域边界坐标计算完成\n")
-    
-    # 将商户详情和边界数据合并返回
-    merchant_with_details["service_boundary"] = boundary_data if 'boundary_data' in locals() else None
-    
-    return merchant_with_details
-
-
-
-import math
-from sqlalchemy import text
-
-async def update_merchant_boundaries(db: Session, merchant_id: int) -> bool:
-    """专门用于更新商户服务范围边界坐标的独立函数"""
-    try:
-        # 获取商户信息
-        merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
-        if not merchant:
-            print(f"商户ID:{merchant_id}不存在")
-            return False
-            
-        if not merchant.latitude or not merchant.longitude or not merchant.service_radius:
-            print(f"商户ID:{merchant_id}缺少计算边界所需的经纬度或服务半径")
-            return False
-        
-        # 确保数据类型正确
-        latitude = float(merchant.latitude)
-        longitude = float(merchant.longitude)
-        radius = float(merchant.service_radius)
-        
-        print(f"【边界更新】开始计算商户ID:{merchant_id}的边界 - 中心点:({latitude}, {longitude}), 半径:{radius}km")
-        
-        # 计算边界坐标
-        lat_rad = latitude * math.pi / 180
-        km_per_lng_degree = 111.32 * math.cos(lat_rad)
-        km_per_lat_degree = 111.32
-        
-        north = latitude + (radius / km_per_lat_degree)
-        south = latitude - (radius / km_per_lat_degree)
-        east = longitude + (radius / km_per_lng_degree)
-        west = longitude - (radius / km_per_lng_degree)
-        
-        print(f"【边界更新】计算结果 - 北:{north:.6f}, 南:{south:.6f}, 东:{east:.6f}, 西:{west:.6f}")
-        
-        # 直接执行SQL更新，避免ORM问题
-        sql = """
-        UPDATE merchants 
-        SET north_boundary = :north, 
-            south_boundary = :south, 
-            east_boundary = :east, 
-            west_boundary = :west 
-        WHERE id = :id
-        """
-        
-        result = db.execute(
-            text(sql),
-            {
-                "north": north,
-                "south": south,
-                "east": east,
-                "west": west,
-                "id": merchant_id
-            }
-        )
-        
-        db.commit()
-        
-        print(f"【边界更新】更新完成, 影响行数: {result.rowcount}")
-        return True
-    except Exception as e:
-        db.rollback()
-        print(f"【边界更新】更新边界坐标时出错: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-async def search_merchants(
+async def search_products(
     db: Session,
     keyword: Optional[str] = None,
     category_id: Optional[int] = None,
+    merchant_id: Optional[int] = None,
     status: Optional[int] = None,
-    latitude: Optional[float] = None,
-    longitude: Optional[float] = None,
-    distance: Optional[float] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    is_hot: Optional[bool] = None,
+    is_new: Optional[bool] = None,
+    is_recommend: Optional[bool] = None,
+    has_group: Optional[bool] = None,
+    min_stock: Optional[int] = None,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
+    user_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 20
 ) -> Tuple[List[Dict], int]:
-    """搜索商户列表"""
-    query = db.query(Merchant)
+    """搜索商品列表 - 确保返回字典列表"""
     
-    # 筛选条件
-    if keyword:
-        query = query.filter(Merchant.name.ilike(f"%{keyword}%"))
+    print(f"🔍 开始商品搜索，参数: merchant_id={merchant_id}, keyword={keyword}")
     
-    if category_id:
-        query = query.join(
-            MerchantCategory, MerchantCategory.merchant_id == Merchant.id
-        ).filter(
-            MerchantCategory.category_id == category_id
-        )
-    
-    if status is not None:
-        query = query.filter(Merchant.status == status)
-    else:
-        # 默认只显示正常状态的商户
-        query = query.filter(Merchant.status == 1)
-    
-    # 查询总数
-    total = query.count()
-    
-    # 排序
-    if sort_by:
-        direction = desc if sort_order == "desc" else asc
-        if sort_by == "rating":
-            query = query.order_by(direction(Merchant.rating))
-        elif sort_by == "created_at":
-            query = query.order_by(direction(Merchant.created_at))
-        elif sort_by == "product_count":
-            # 按商品数量排序
-            query = query.outerjoin(
-                Product, Product.merchant_id == Merchant.id
-            ).group_by(Merchant.id).order_by(
-                direction(func.count(Product.id))
-            )
-    else:
-        # 默认按创建时间倒序
-        query = query.order_by(Merchant.created_at.desc())
-    
-    # 分页
-    merchants = query.offset(skip).limit(limit).all()
-    
-    # 处理结果
-    result = []
-    for merchant in merchants:
-        # 获取商品数量
-        product_count = db.query(func.count(Product.id)).filter(
-            Product.merchant_id == merchant.id
-        ).scalar() or 0
+    try:
+        query = db.query(Product)
         
-        # 获取分类
-        categories = []
-        merchant_categories = db.query(MerchantCategory).filter(
-            MerchantCategory.merchant_id == merchant.id
-        ).all()
-        for mc in merchant_categories:
-            category = crud_category.get(db, id=mc.category_id)
-            if category:
-                categories.append({
-                    "id": category.id,
-                    "name": category.name,
-                    "icon": category.icon
-                })
-        
-        # 计算距离
-        merchant_distance = None
-        if latitude and longitude and merchant.latitude and merchant.longitude:
-            merchant_distance = calculate_distance(
-                latitude, longitude, merchant.latitude, merchant.longitude
+        # 筛选条件
+        if keyword:
+            query = query.filter(
+                or_(
+                    Product.name.ilike(f"%{keyword}%"),
+                    Product.description.ilike(f"%{keyword}%")
+                )
             )
         
-        merchant_data = {
-            "id": merchant.id,
-            "name": merchant.name,
-            "logo": merchant.logo,
-            "cover": merchant.cover,
-            "description": merchant.description,
-            "province": merchant.province,
-            "city": merchant.city,
-            "district": merchant.district,
-            "address": merchant.address,
-            "latitude": merchant.latitude,
-            "longitude": merchant.longitude,
-            "business_hours": merchant.business_hours,
-            "status": merchant.status,
-            "rating": merchant.rating,
-            "product_count": product_count,
-            "categories": categories,
-            "distance": merchant_distance,
-            "created_at": merchant.created_at,
-            # 添加以下字段
-            "contact_name": merchant.contact_name,
-            "contact_phone": merchant.contact_phone,
-            "service_radius": merchant.service_radius,
-            "north_boundary": merchant.north_boundary,
-            "south_boundary": merchant.south_boundary,
-            "east_boundary": merchant.east_boundary,
-            "west_boundary": merchant.west_boundary,
-            "commission_rate": merchant.commission_rate,
-            "license_number": merchant.license_number,
-            "license_image": merchant.license_image
-        }
+        if category_id:
+            query = query.join(
+                product_categories,
+                Product.id == product_categories.c.product_id
+            ).filter(product_categories.c.category_id == category_id)
         
-        # 如果指定了距离筛选，只返回在范围内的商户
-        if distance is not None and merchant_distance is not None:
-            if merchant_distance <= distance:
-                result.append(merchant_data)
+        if merchant_id:
+            query = query.filter(Product.merchant_id == merchant_id)
+        
+        if status is not None:
+            query = query.filter(Product.status == status)
         else:
-            result.append(merchant_data)
-    
-    # 如果应用了距离筛选，重新计算总数
-    if distance is not None and latitude and longitude:
-        total = len(result)
+            # 默认只显示上架商品
+            query = query.filter(Product.status == 1)
         
-        # 按距离排序
-        if sort_by == "distance":
-            result.sort(
-                key=lambda x: x["distance"] if x["distance"] is not None else float('inf'),
-                reverse=(sort_order == "desc")
-            )
+        if min_price is not None:
+            query = query.filter(Product.current_price >= min_price)
+        
+        if max_price is not None:
+            query = query.filter(Product.current_price <= max_price)
+        
+        if is_hot is not None:
+            query = query.filter(Product.is_hot == is_hot)
+        
+        if is_new is not None:
+            query = query.filter(Product.is_new == is_new)
+        
+        if is_recommend is not None:
+            query = query.filter(Product.is_recommend == is_recommend)
+        
+        # 库存筛选
+        if min_stock is not None:
+            if min_stock == -1:  # 库存不足 (<=10)
+                query = query.filter(Product.stock <= 10)
+            elif min_stock == -2:  # 已售罄 (=0)
+                query = query.filter(Product.stock == 0)
+            else:  # 库存 >= min_stock
+                query = query.filter(Product.stock >= min_stock)
+        
+        # 处理团购筛选
+        if has_group is not None:
+            if has_group:
+                # 查找有进行中团购的商品
+                query = query.join(
+                    Group,
+                    (Group.product_id == Product.id) & 
+                    (Group.status == 1) &  # 进行中
+                    (Group.end_time > datetime.now())
+                )
+            else:
+                # 查找没有进行中团购的商品
+                query = query.outerjoin(
+                    Group,
+                    (Group.product_id == Product.id) & 
+                    (Group.status == 1) &  # 进行中
+                    (Group.end_time > datetime.now())
+                ).filter(Group.id == None)
+        
+        # 查询总数
+        total = query.count()
+        print(f"📊 符合条件的商品总数: {total}")
+        
+        # 排序
+        if sort_by:
+            direction = desc if sort_order == "desc" else asc
+            if sort_by == "price":
+                query = query.order_by(direction(Product.current_price))
+            elif sort_by == "sales":
+                query = query.order_by(direction(Product.sales))
+            elif sort_by == "views":
+                query = query.order_by(direction(Product.views))
+            elif sort_by == "created_at":
+                query = query.order_by(direction(Product.created_at))
+        else:
+            # 默认按排序值和创建时间排序
+            query = query.order_by(Product.sort_order.desc(), Product.created_at.desc())
         
         # 分页
-        result = result[skip:skip+limit]
+        products = query.offset(skip).limit(limit).all()
+        print(f"📦 获取到 {len(products)} 个商品ORM对象")
+        
+        # 🔥 关键修复：确保所有商品都转换为字典
+        result = []
+        for i, product in enumerate(products):
+            try:
+                print(f"🔄 正在转换第 {i+1} 个商品: ID={getattr(product, 'id', 'unknown')}")
+                
+                # 使用统一的转换函数
+                product_dict = safe_convert_orm_to_dict(product, user_id, db)
+                result.append(product_dict)
+                
+                print(f"✅ 商品 {product_dict['id']} 转换成功")
+                
+            except Exception as e:
+                print(f"❌ 转换商品 {getattr(product, 'id', 'unknown')} 失败: {e}")
+                # 继续处理其他商品，不因为单个商品错误而整体失败
+                continue
+        
+        print(f"🎉 成功转换 {len(result)} 个商品为字典格式")
+        
+        # 🔥 关键：确保返回的是字典列表
+        return result, total
+        
+    except Exception as e:
+        print(f"❌ 商品搜索异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # 返回空结果而不是抛出异常
+        return [], 0
+
+
+async def get_product(db: Session, product_id: int, user_id: Optional[int] = None) -> Dict:
+    """获取单个商品详情 - 确保返回字典"""
+    try:
+        product = db.query(Product).filter(Product.id == product_id).first()
+        
+        if not product:
+            raise HTTPException(status_code=404, detail="商品不存在")
+        
+        print(f"🔍 获取商品详情: ID={product_id}")
+        
+        # 安全增加浏览量
+        try:
+            product.views = (product.views or 0) + 1
+            db.commit()
+        except Exception as e:
+            print(f"更新浏览量失败: {e}")
+            db.rollback()
+        
+        # 使用统一的转换函数，但需要添加额外的详情信息
+        product_data = safe_convert_orm_to_dict(product, user_id, db)
+        
+        # 添加商品详情特有的字段
+        try:
+            # 获取商品图片
+            images_data = []
+            images = db.query(ProductImage).filter(
+                ProductImage.product_id == product_id
+            ).order_by(ProductImage.sort_order).all()
+            
+            for image in images:
+                images_data.append({
+                    "id": image.id,
+                    "image_url": str(image.image_url or ""),
+                    "sort_order": int(image.sort_order or 0),
+                    "product_id": product_id,
+                    "created_at": image.created_at
+                })
+            
+            # 获取商品规格
+            specs_data = []
+            specifications = db.query(ProductSpecification).filter(
+                ProductSpecification.product_id == product_id
+            ).order_by(ProductSpecification.sort_order).all()
+            
+            for spec in specifications:
+                specs_data.append({
+                    "id": spec.id,
+                    "name": str(spec.name or ""),
+                    "value": str(spec.value or ""),
+                    "price_adjustment": float(spec.price_adjustment or 0),
+                    "stock": int(spec.stock or 0),
+                    "sort_order": int(spec.sort_order or 0),
+                    "product_id": product_id,
+                    "created_at": spec.created_at,
+                    "updated_at": spec.updated_at
+                })
+            
+            # 添加详情字段
+            product_data.update({
+                "detail": str(product.detail or ""),  # 商品详情
+                "images": images_data,
+                "specifications": specs_data
+            })
+            
+        except Exception as e:
+            print(f"获取商品详情附加信息失败: {e}")
+            # 添加空的详情字段
+            product_data.update({
+                "detail": "",
+                "images": [],
+                "specifications": []
+            })
+        
+        print(f"✅ 商品详情获取成功: {product_data['name']}")
+        return product_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取商品详情异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="获取商品详情时发生系统错误")
+
+
+async def create_product(db: Session, product_data: ProductCreate, merchant_id: int) -> Product:
+    """创建商品"""
+    # 检查商户是否存在
+    merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="商户不存在")
     
-    return result, total
-
-
-async def get_categories(db: Session, is_active: Optional[bool] = None) -> List[Category]:
-    """获取分类列表"""
-    query = db.query(Category)
+    # 创建商品
+    product_dict = product_data.dict(exclude={"category_ids", "images", "specifications"})
+    product_dict["merchant_id"] = merchant_id
     
-    if is_active is not None:
-        query = query.filter(Category.is_active == is_active)
+    product = crud_product.create(db, obj_in=product_dict, merchant_id=merchant_id)
     
-    categories = query.order_by(Category.sort_order).all()
+    # 关联分类
+    for category_id in product_data.category_ids:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if category:
+            stmt = product_categories.insert().values(
+                product_id=product.id,
+                category_id=category_id
+            )
+            db.execute(stmt)
     
-    # 确保每个分类对象包含所需字段
-    for category in categories:
-        if not hasattr(category, 'created_at') or category.created_at is None:
-            category.created_at = datetime.now()
-        if not hasattr(category, 'updated_at') or category.updated_at is None:
-            category.updated_at = datetime.now()
+    # 添加图片
+    for image_data in product_data.images:
+        image = ProductImageCreate(**image_data.dict())
+        crud_product_image.create(db, obj_in=image, product_id=product.id)
     
-    return categories
-
-
-async def create_category(db: Session, category_data: CategoryCreate) -> Category:
-    """创建分类"""
-    return crud_category.create(db, obj_in=category_data)
-
-
-async def update_category(db: Session, category_id: int, category_data: CategoryUpdate) -> Category:
-    """更新分类"""
-    category = crud_category.get(db, id=category_id)
-    if not category:
-        raise HTTPException(status_code=404, detail="分类不存在")
+    # 添加规格
+    for spec_data in product_data.specifications:
+        spec = ProductSpecificationCreate(**spec_data.dict())
+        crud_product_specification.create(db, obj_in=spec, product_id=product.id)
     
-    return crud_category.update(db, db_obj=category, obj_in=category_data)
-
-from app.models.product import product_categories
-
-async def delete_category(db: Session, category_id: int) -> bool:
-    """删除分类"""
-    category = crud_category.get(db, id=category_id)
-    if not category:
-        raise HTTPException(status_code=404, detail="分类不存在")
+    db.commit()
+    db.refresh(product)
     
-    # 检查是否有商户使用此分类
-    merchant_count = db.query(func.count(MerchantCategory.id)).filter(
-        MerchantCategory.category_id == category_id
+    return product
+
+
+async def update_product(db: Session, product_id: int, product_data: ProductUpdate, merchant_id: int) -> Product:
+    """更新商品"""
+    # 检查商品是否存在且属于该商户
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.merchant_id == merchant_id
+    ).first()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在或无权限")
+    
+    # 更新商品基本信息
+    product_dict = product_data.dict(exclude={"category_ids"}, exclude_unset=True)
+    updated_product = crud_product.update(db, db_obj=product, obj_in=product_dict)
+    
+    # 更新分类关联
+    if product_data.category_ids is not None:
+        # 删除现有关联
+        db.execute(product_categories.delete().where(
+            product_categories.c.product_id == product_id
+        ))
+        
+        # 添加新关联
+        for category_id in product_data.category_ids:
+            category = db.query(Category).filter(Category.id == category_id).first()
+            if category:
+                stmt = product_categories.insert().values(
+                    product_id=product_id,
+                    category_id=category_id
+                )
+                db.execute(stmt)
+    
+    db.commit()
+    db.refresh(updated_product)
+    
+    return updated_product
+
+
+async def update_product_images(
+    db: Session, 
+    product_id: int,
+    merchant_id: int,
+    images: List[ProductImageCreate]
+) -> List[ProductImage]:
+    """更新商品图片"""
+    # 检查商品是否存在且属于该商户
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.merchant_id == merchant_id
+    ).first()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在或无权限")
+    
+    # 删除现有图片
+    db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
+    
+    # 添加新图片
+    new_images = []
+    for image_data in images:
+        image = crud_product_image.create(db, obj_in=image_data, product_id=product_id)
+        new_images.append(image)
+    
+    db.commit()
+    
+    return new_images
+
+
+async def update_product_specifications(
+    db: Session, 
+    product_id: int,
+    merchant_id: int,
+    specifications: List[ProductSpecificationCreate]
+) -> List[ProductSpecification]:
+    """更新商品规格"""
+    # 检查商品是否存在且属于该商户
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.merchant_id == merchant_id
+    ).first()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在或无权限")
+    
+    # 删除现有规格
+    db.query(ProductSpecification).filter(ProductSpecification.product_id == product_id).delete()
+    
+    # 添加新规格
+    new_specs = []
+    for spec_data in specifications:
+        spec = crud_product_specification.create(db, obj_in=spec_data, product_id=product_id)
+        new_specs.append(spec)
+    
+    db.commit()
+    
+    return new_specs
+
+
+async def delete_product(db: Session, product_id: int, merchant_id: int) -> bool:
+    """删除商品"""
+    # 检查商品是否存在且属于该商户
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.merchant_id == merchant_id
+    ).first()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在或无权限")
+    
+    # 检查商品是否有关联订单
+    order_count = db.query(func.count(OrderItem.id)).filter(
+        OrderItem.product_id == product_id
     ).scalar() or 0
     
-    if merchant_count > 0:
-        raise HTTPException(status_code=400, detail="分类已被商户使用，无法删除")
+    if order_count > 0:
+        # 如果有关联订单，则只能下架不能删除
+        product.status = 0  # 下架
+        db.commit()
+        return False
     
-    # 检查是否有商品使用此分类
-    product_count = db.query(func.count(product_categories.c.category_id)).filter(
-        product_categories.c.category_id == category_id
+    # 删除商品图片
+    db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
+    
+    # 删除商品规格
+    db.query(ProductSpecification).filter(ProductSpecification.product_id == product_id).delete()
+    
+    # 删除分类关联
+    db.execute(product_categories.delete().where(
+        product_categories.c.product_id == product_id
+    ))
+    
+    # 删除商品
+    db.delete(product)
+    db.commit()
+    
+    return True
+
+
+async def get_related_products(
+    db: Session, 
+    product_id: int, 
+    limit: int = 10
+) -> List[Dict]:
+    """获取相关商品 - 确保返回字典列表"""
+    try:
+        # 获取当前商品
+        product = db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="商品不存在")
+        
+        # 获取当前商品的分类
+        category_ids = db.query(product_categories.c.category_id).filter(
+            product_categories.c.product_id == product_id
+        ).all()
+        category_ids = [c[0] for c in category_ids]
+        
+        if not category_ids:
+            # 如果没有分类，返回同一商户的其他商品
+            related_products = db.query(Product).filter(
+                Product.merchant_id == product.merchant_id,
+                Product.id != product_id,
+                Product.status == 1  # 上架状态
+            ).order_by(
+                Product.is_recommend.desc(),
+                Product.sales.desc()
+            ).limit(limit).all()
+        else:
+            # 查询同分类的其他商品
+            related_products = db.query(Product).join(
+                product_categories,
+                product_categories.c.product_id == Product.id
+            ).filter(
+                product_categories.c.category_id.in_(category_ids),
+                Product.id != product_id,
+                Product.status == 1  # 上架状态
+            ).order_by(
+                Product.is_recommend.desc(),
+                Product.sales.desc()
+            ).limit(limit).all()
+        
+        # 🔥 关键：转换为字典列表
+        result = []
+        for related in related_products:
+            try:
+                product_dict = safe_convert_orm_to_dict(related, None, db)
+                result.append(product_dict)
+            except Exception as e:
+                print(f"转换相关商品失败: {e}")
+                continue
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"获取相关商品失败: {e}")
+        return []
+
+
+async def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
+    """根据ID获取商品ORM对象（内部使用）"""
+    return db.query(Product).filter(Product.id == product_id).first()
+
+
+async def get_products_by_ids_raw(db: Session, product_ids: List[int]) -> List[Product]:
+    """根据ID列表获取商品ORM对象列表（内部使用）"""
+    return db.query(Product).filter(Product.id.in_(product_ids)).all()
+
+
+async def get_product_by_id_raw(db: Session, product_id: int) -> Optional[Product]:
+    """根据ID获取商品ORM对象（内部使用）"""
+    return db.query(Product).filter(Product.id == product_id).first()
+
+
+async def has_pending_orders(db: Session, product_id: int) -> bool:
+    """检查商品是否有未完成的订单"""
+    # 检查是否有状态为待支付、待发货、待收货的订单
+    pending_statuses = [0, 1, 2]  # 根据实际订单状态定义调整
+    
+    count = db.query(OrderItem).join(Order).filter(
+        and_(
+            OrderItem.product_id == product_id,
+            Order.status.in_(pending_statuses)
+        )
+    ).count()
+    
+    return count > 0
+
+
+async def has_active_groups(db: Session, product_id: int) -> bool:
+    """检查商品是否有进行中的团购活动"""
+    # 检查是否有状态为进行中的团购
+    active_statuses = [0, 1]  # 根据实际团购状态定义调整
+    
+    count = db.query(Group).filter(
+        and_(
+            Group.product_id == product_id,
+            Group.status.in_(active_statuses)
+        )
+    ).count()
+    
+    return count > 0
+
+
+async def batch_operation(
+    db: Session, 
+    operation: str, 
+    product_ids: List[int], 
+    data: Dict[str, Any],
+    merchant_id: int
+) -> Dict[str, Any]:
+    """批量操作商品"""
+    success_count = 0
+    failed_count = 0
+    
+    try:
+        if operation == "delete":
+            # 批量删除
+            result = db.query(Product).filter(
+                and_(
+                    Product.id.in_(product_ids),
+                    Product.merchant_id == merchant_id
+                )
+            ).delete(synchronize_session=False)
+            success_count = result
+            
+        elif operation == "update_status":
+            # 批量更新状态
+            status = data.get("status", 1)
+            result = db.query(Product).filter(
+                and_(
+                    Product.id.in_(product_ids),
+                    Product.merchant_id == merchant_id
+                )
+            ).update({"status": status}, synchronize_session=False)
+            success_count = result
+            
+        elif operation == "update_tags":
+            # 批量更新标签
+            update_data = {}
+            if "is_hot" in data:
+                update_data["is_hot"] = data["is_hot"]
+            if "is_new" in data:
+                update_data["is_new"] = data["is_new"]
+            if "is_recommend" in data:
+                update_data["is_recommend"] = data["is_recommend"]
+            
+            if update_data:
+                result = db.query(Product).filter(
+                    and_(
+                        Product.id.in_(product_ids),
+                        Product.merchant_id == merchant_id
+                    )
+                ).update(update_data, synchronize_session=False)
+                success_count = result
+                
+        elif operation == "update_category":
+            # 批量更新分类（这个比较复杂，需要处理多对多关系）
+            category_ids = data.get("category_ids", [])
+            if category_ids:
+                for product_id in product_ids:
+                    product = db.query(Product).filter(
+                        and_(
+                            Product.id == product_id,
+                            Product.merchant_id == merchant_id
+                        )
+                    ).first()
+                    if product:
+                        # 清除现有分类关系
+                        db.execute(product_categories.delete().where(
+                            product_categories.c.product_id == product_id
+                        ))
+                        # 添加新的分类关系
+                        for category_id in category_ids:
+                            stmt = product_categories.insert().values(
+                                product_id=product_id,
+                                category_id=category_id
+                            )
+                            db.execute(stmt)
+                        success_count += 1
+        
+        db.commit()
+        
+        return {
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_count": len(product_ids)
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+async def get_merchant_product_stats(db: Session, merchant_id: int) -> Dict[str, Any]:
+    """获取商户商品统计数据"""
+    # 基础统计
+    total_products = db.query(Product).filter(Product.merchant_id == merchant_id).count()
+    
+    # 按状态统计
+    on_sale = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.status == 1)
+    ).count()
+    
+    off_sale = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.status == 0)
+    ).count()
+    
+    # 按标签统计
+    hot_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_hot == True)
+    ).count()
+    
+    new_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_new == True)
+    ).count()
+    
+    recommend_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.is_recommend == True)
+    ).count()
+    
+    # 库存统计
+    low_stock_products = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.stock < 10)
+    ).count()
+    
+    out_of_stock = db.query(Product).filter(
+        and_(Product.merchant_id == merchant_id, Product.stock == 0)
+    ).count()
+    
+    # 销售统计
+    total_sales = db.query(func.sum(Product.sales)).filter(
+        Product.merchant_id == merchant_id
     ).scalar() or 0
     
-    if product_count > 0:
-        raise HTTPException(status_code=400, detail="分类已被商品使用，无法删除")
+    total_views = db.query(func.sum(Product.views)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
     
-    # 使用 delete 方法而不是 remove 方法
-    return crud_category.delete(db, id=category_id)
+    # 价格统计
+    avg_price = db.query(func.avg(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    max_price = db.query(func.max(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    min_price = db.query(func.min(Product.current_price)).filter(
+        Product.merchant_id == merchant_id
+    ).scalar() or 0
+    
+    return {
+        "basic_stats": {
+            "total_products": total_products,
+            "on_sale": on_sale,
+            "off_sale": off_sale,
+        },
+        "tag_stats": {
+            "hot_products": hot_products,
+            "new_products": new_products,
+            "recommend_products": recommend_products,
+        },
+        "stock_stats": {
+            "low_stock_products": low_stock_products,
+            "out_of_stock": out_of_stock,
+            "total_stock": db.query(func.sum(Product.stock)).filter(
+                Product.merchant_id == merchant_id
+            ).scalar() or 0,
+        },
+        "sales_stats": {
+            "total_sales": total_sales,
+            "total_views": total_views,
+            "avg_conversion_rate": round((total_sales / total_views * 100) if total_views > 0 else 0, 2),
+        },
+        "price_stats": {
+            "avg_price": round(float(avg_price), 2) if avg_price else 0,
+            "max_price": float(max_price) if max_price else 0,
+            "min_price": float(min_price) if min_price else 0,
+        }
+    }

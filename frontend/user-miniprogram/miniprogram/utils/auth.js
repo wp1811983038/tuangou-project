@@ -2,7 +2,8 @@
  * utils/auth.js - 认证相关工具函数
  */
 
-import { post } from './request';
+// 🔧 修复：导入缺少的 get 方法
+import { post, get } from './request';  // ✅ 添加 get 导入
 import { apiPath, apiBaseUrl } from '../config/api'; 
 
 // Token存储键名
@@ -170,11 +171,12 @@ export const phoneLogin = async (phone, password) => {
         app.globalData.token = result.access_token;
         app.globalData.hasLogin = true;
         
-        // 更新用户信息
+        // 🔧 修复：添加错误处理，避免阻塞登录流程
         try {
           await getUserDetail();
         } catch (err) {
           console.error('获取用户详情失败', err);
+          // 不抛出错误，允许登录继续进行
         }
       }
     }
@@ -192,7 +194,7 @@ export const phoneLogin = async (phone, password) => {
  */
 export const getUserDetail = async () => {
   try {
-    // 将post改为get
+    // ✅ 现在 get 已经正确导入，可以使用
     const result = await get(apiPath.user.profile);
     
     // 存储用户信息
