@@ -1,4 +1,4 @@
-<!--index.wxml-->
+<!--pages/index/index.wxml-->
 <view class="container">
   <!-- 位置授权提示 -->
   <view class="location-tip" wx:if="{{showLocationTip}}">
@@ -114,6 +114,64 @@
         <text>查看商户</text>
       </view>
     </view>
+
+    <!-- 商品分类筛选 -->
+    <view class="product-categories">
+      <scroll-view scroll-x="true" class="category-scroll">
+        <view class="category-list">
+          <view class="category-item {{item.active ? 'active' : ''}}" 
+                wx:for="{{productCategories}}" 
+                wx:key="key"
+                data-key="{{item.key}}"
+                bindtap="switchProductCategory">
+            <text class="category-name">{{item.name}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 商品列表 -->
+    <view class="products-section">
+      <view class="products-header">
+        <text class="products-title">商品列表</text>
+        <view class="view-all" bindtap="goToProductList">
+          <text>查看全部</text>
+          <text class="arrow">></text>
+        </view>
+      </view>
+
+      <!-- 使用商品卡片组件展示商品网格 -->
+      <view class="products-grid" wx:if="{{products.length > 0}}">
+        <product-card 
+          wx:for="{{products}}" 
+          wx:key="id"
+          product="{{item}}"
+          mode="grid"
+          show-merchant="{{false}}"
+          bind:tap="onProductTap"
+          bind:favorite="onProductFavorite"
+          bind:buy="onProductBuy">
+        </product-card>
+      </view>
+
+      <!-- 商品加载中 -->
+      <view class="products-loading" wx:if="{{loadingProducts}}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">加载中...</text>
+      </view>
+
+      <!-- 暂无商品 -->
+      <view class="no-products" wx:if="{{!loadingProducts && products.length === 0}}">
+        <image class="no-products-icon" src="/assets/images/logo.png" mode="aspectFit"></image>
+        <text class="no-products-text">该商户暂无{{currentCategoryName}}商品</text>
+      </view>
+
+      <!-- 加载更多提示 -->
+      <view class="load-more-tip" wx:if="{{products.length > 0 && !loadingProducts}}">
+        <text wx:if="{{hasMoreProducts}}">上拉加载更多商品</text>
+        <text wx:else>已显示全部商品</text>
+      </view>
+    </view>
   </view>
 
   <!-- 附近商户显示 -->
@@ -140,7 +198,7 @@
     <text>您当前位置不在任何商户的服务范围内</text>
   </view>
 
-  <!-- 加载状态 -->
+  <!-- 主加载状态 -->
   <view class="loading-container" wx:if="{{loading}}">
     <view class="loading">
       <view class="loading-spinner"></view>

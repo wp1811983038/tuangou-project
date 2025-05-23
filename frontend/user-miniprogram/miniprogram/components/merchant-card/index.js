@@ -1,66 +1,84 @@
-// components/merchant-card/index.js
-Page({
+Component({
+  /**
+   * 组件的属性列表
+   */
+  properties: {
+    // 商品数据
+    product: {
+      type: Object,
+      value: {}
+    },
+    // 卡片样式模式：'grid' | 'list'
+    mode: {
+      type: String,
+      value: 'grid'
+    },
+    // 是否显示商户名称
+    showMerchant: {
+      type: Boolean,
+      value: false
+    }
+  },
 
   /**
-   * 页面的初始数据
+   * 组件的初始数据
    */
   data: {
 
   },
 
   /**
-   * 生命周期函数--监听页面加载
+   * 组件的方法列表
    */
-  onLoad(options) {
+  methods: {
+    // 点击商品卡片
+    onTapCard() {
+      const { product } = this.data;
+      if (product.id) {
+        // 触发父组件事件
+        this.triggerEvent('tap', { 
+          product: product,
+          productId: product.id 
+        });
+      }
+    },
 
-  },
+    // 点击收藏按钮
+    onTapFavorite(e) {
+      e.stopPropagation(); // 阻止事件冒泡
+      
+      const { product } = this.data;
+      this.triggerEvent('favorite', { 
+        product: product,
+        productId: product.id,
+        isFavorite: product.is_favorite 
+      });
+    },
 
-  /**
-   * 生命周期函数--监听页面初次渲染完成
-   */
-  onReady() {
+    // 点击购买按钮
+    onTapBuy(e) {
+      e.stopPropagation(); // 阻止事件冒泡
+      
+      const { product } = this.data;
+      this.triggerEvent('buy', { 
+        product: product,
+        productId: product.id 
+      });
+    },
 
-  },
+    // 格式化价格显示
+    formatPrice(price) {
+      if (!price && price !== 0) return '0.00';
+      return parseFloat(price).toFixed(2);
+    },
 
-  /**
-   * 生命周期函数--监听页面显示
-   */
-  onShow() {
-
-  },
-
-  /**
-   * 生命周期函数--监听页面隐藏
-   */
-  onHide() {
-
-  },
-
-  /**
-   * 生命周期函数--监听页面卸载
-   */
-  onUnload() {
-
-  },
-
-  /**
-   * 页面相关事件处理函数--监听用户下拉动作
-   */
-  onPullDownRefresh() {
-
-  },
-
-  /**
-   * 页面上拉触底事件的处理函数
-   */
-  onReachBottom() {
-
-  },
-
-  /**
-   * 用户点击右上角分享
-   */
-  onShareAppMessage() {
-
+    // 格式化销量显示
+    formatSales(sales) {
+      if (!sales) return 0;
+      if (sales >= 10000) {
+        return `${(sales / 10000).toFixed(1)}万`;
+      }
+      return sales;
+    }
   }
-})
+});

@@ -1,2 +1,62 @@
-<!--components/merchant-card/index.wxml-->
-<text>components/merchant-card/index.wxml</text>
+<view class="product-card {{mode}}" bindtap="onTapCard">
+  <!-- 商品图片区域 -->
+  <view class="product-image-wrapper">
+    <image class="product-image" 
+           src="{{product.thumbnail || '/assets/images/logo.png'}}" 
+           mode="aspectFill"
+           lazy-load="{{true}}"></image>
+    
+    <!-- 商品标签 -->
+    <view class="product-tags" wx:if="{{product.is_hot || product.is_new || product.is_recommend}}">
+      <text class="product-tag hot" wx:if="{{product.is_hot}}">热门</text>
+      <text class="product-tag new" wx:if="{{product.is_new}}">新品</text>
+      <text class="product-tag recommend" wx:if="{{product.is_recommend}}">推荐</text>
+    </view>
+
+    <!-- 缺货遮罩 -->
+    <view class="out-of-stock-mask" wx:if="{{product.stock === 0}}">
+      <text class="out-of-stock-text">暂时缺货</text>
+    </view>
+  </view>
+  
+  <!-- 商品信息区域 -->
+  <view class="product-info">
+    <!-- 商户名称 -->
+    <text class="merchant-name" wx:if="{{showMerchant && product.merchant_name}}">{{product.merchant_name}}</text>
+    
+    <!-- 商品名称 -->
+    <text class="product-name">{{product.name || '商品名称'}}</text>
+    
+    <!-- 商品描述 -->
+    <text class="product-desc" wx:if="{{product.description && mode === 'list'}}">{{product.description}}</text>
+    
+    <!-- 价格信息 -->
+    <view class="product-price">
+      <text class="current-price">¥{{formatPrice(product.current_price)}}</text>
+      <text class="original-price" wx:if="{{product.original_price > product.current_price}}">¥{{formatPrice(product.original_price)}}</text>
+      <text class="group-price" wx:if="{{product.group_price && product.has_group}}">团购¥{{formatPrice(product.group_price)}}</text>
+    </view>
+    
+    <!-- 统计信息和操作按钮 -->
+    <view class="product-bottom">
+      <view class="product-stats">
+        <text class="sales">已售{{formatSales(product.sales)}}</text>
+        <text class="stock" wx:if="{{product.stock <= 10 && product.stock > 0}}">仅剩{{product.stock}}件</text>
+      </view>
+      
+      <!-- 操作按钮组 -->
+      <view class="product-actions" wx:if="{{mode === 'list'}}">
+        <!-- 收藏按钮 -->
+        <view class="action-btn favorite-btn {{product.is_favorite ? 'active' : ''}}" 
+              bindtap="onTapFavorite">
+          <text class="iconfont icon-heart"></text>
+        </view>
+        
+        <!-- 购买按钮 -->
+        <view class="action-btn buy-btn" bindtap="onTapBuy">
+          <text class="btn-text">购买</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
