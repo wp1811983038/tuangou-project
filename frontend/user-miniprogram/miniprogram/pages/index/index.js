@@ -1,124 +1,188 @@
-// pages/index/index.js
+// pages/index/index.js - 集成分类功能的增强版首页
 import { getLocation } from '../../utils/location';
 import { get, post } from '../../utils/request';
 import { apiPath } from '../../config/api';
 import { checkLoginStatus } from '../../utils/auth';
+import { 
+  getCategories, 
+  getHotCategories,
+  getMerchantsByCategory 
+} from '../../services/category';
+import { CategoryUtils, CategoryNavigationUtils } from '../../utils/category';
 
 Page({
   data: {
-    location: null,                 // 用户位置
-    inBoundaryMerchants: [],        // 在边界范围内的商户
-    allMerchants: [],               // 所有商户
-    hasNearbyMerchant: false,       // 是否有边界范围内的商户
-    loading: false,                 // 主加载状态
-    showLocationTip: false,         // 位置提示
-    currentMerchant: {},            // 当前选中的商户
-    showMerchantPanel: false,       // 是否显示商户面板
+    // 位置和商户数据
+    location: null,
+    inBoundaryMerchants: [],
+    allMerchants: [],
+    hasNearbyMerchant: false,
+    currentMerchant: {},
+    showMerchantPanel: false,
+    
+    // 分类数据
+    categories: [],                    // 所有分类
+    hotCategories: [],                 // 热门分类
+    showAllCategories: false,          // 是否显示全部分类
     
     // 商品相关数据
-    products: [],                   // 商品列表
-    loadingProducts: false,         // 商品加载状态
-    productCategories: [            // 商品分类筛选
+    products: [],
+    loadingProducts: false,
+    productCategories: [
       { key: 'all', name: '全部', active: true },
       { key: 'recommend', name: '推荐', active: false },
       { key: 'hot', name: '热门', active: false },
       { key: 'new', name: '新品', active: false }
     ],
-    currentCategory: 'all',         // 当前选中的分类
-    hasMoreProducts: true,          // 是否还有更多商品
-    productPage: 1,                 // 商品页码
-    productPageSize: 10             // 每页商品数量
+    currentCategory: 'all',
+    hasMoreProducts: true,
+    productPage: 1,
+    productPageSize: 10,
+    
+    // 轮播图和推荐
+    banners: [],                       // 轮播图
+    recommendMerchants: [],            // 推荐商户
+    
+    // UI状态
+    loading: false,
+    showLocationTip: false,
+    refreshing: false
   },
 
   // 初始化标志
-  merchantsLoading: false,          // 商户加载标志
-  productLoadingKey: null,          // 商品加载防重复标志
+  merchantsLoading: false,
+  productLoadingKey: null,
 
   onLoad: function(options) {
-    // 加载缓存的位置
-    const cachedLocation = wx.getStorageSync('location');
-    if (cachedLocation) {
-      this.setData({ location: cachedLocation });
-    }
+    // 加载缓存数据
+    this.loadCachedData();
     
-    // 加载缓存的当前商户
-    const currentMerchant = wx.getStorageSync('currentMerchant');
-    if (currentMerchant) {
-      this.setData({ currentMerchant });
+    // 处理分享进入的分类参数
+    if (options.category_id) {
+      this.handleCategoryShare(parseInt(options.category_id));
     }
   },
 
   onReady: function() {
-    // 页面渲染完成后再进行初始化
     wx.nextTick(() => {
       this.initializePage();
     });
   },
 
   onShow: function() {
-    // 页面显示时检查是否需要重新获取位置
     if (!this.data.location) {
       setTimeout(() => {
         this.getCurrentLocation();
       }, 100);
     }
+    
+    // 刷新分类数据（如果缓存过期）
+    this.refreshCategoriesIfNeeded();
   },
 
   onUnload: function() {
-    // 页面卸载时清理状态
     this.merchantsLoading = false;
     this.productLoadingKey = null;
   },
 
-  // 初始化页面数据
-  initializePage: function() {
-    // 如果有缓存的商户，加载其商品
-    const { currentMerchant } = this.data;
-    if (currentMerchant && currentMerchant.id) {
-      this.loadMerchantProducts(currentMerchant.id, true);
+  // 加载缓存数据
+  loadCachedData() {
+    try {
+      const cachedLocation = wx.getStorageSync('location');
+      const currentMerchant = wx.getStorageSync('currentMerchant');
+      const cachedCategories = CategoryUtils.getCachedCategories();
+      
+      if (cachedLocation) {
+        this.setData({ location: cachedLocation });
+      }
+      
+      if (currentMerchant) {
+        this.setData({ currentMerchant });
+      }
+      
+      if (cachedCategories) {
+        this.setData({ 
+          categories: cachedCategories,
+          hotCategories: CategoryUtils.getHotCategories(cachedCategories, 8)
+        });
+      }
+    } catch (error) {
+      console.error('加载缓存数据失败', error);
     }
-    
-    // 延迟获取位置，避免过早调用
-    setTimeout(() => {
-      this.getCurrentLocation();
-    }, 300);
   },
 
-  // 获取当前位置并检查商户边界
+  // 初始化页面数据
+  async initializePage() {
+    this.setData({ loading: true });
+    
+    try {
+      await Promise.all([
+        this.getCurrentLocation(),
+        this.loadCategories(),
+        this.loadBanners(),
+        this.loadRecommendMerchants()
+      ]);
+      
+      // 如果有选中商户，加载商品
+      const { currentMerchant } = this.data;
+      if (currentMerchant && currentMerchant.id) {
+        this.loadMerchantProducts(currentMerchant.id, true);
+      }
+      
+    } catch (error) {
+      console.error('页面初始化失败', error);
+      wx.showToast({
+        title: '页面加载失败',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
+
+  // 处理分类分享进入
+  handleCategoryShare(categoryId) {
+    // 延迟跳转到分类页面，让首页先加载完成
+    setTimeout(() => {
+      CategoryNavigationUtils.navigateToCategory(categoryId);
+    }, 1000);
+  },
+
+  // 刷新分类数据（如果需要）
+  async refreshCategoriesIfNeeded() {
+    const cachedCategories = CategoryUtils.getCachedCategories();
+    if (!cachedCategories) {
+      await this.loadCategories();
+    }
+  },
+
+  // 获取当前位置
   async getCurrentLocation() {
     try {
-      // 检查是否已经在加载中，避免重复调用
-      if (this.data.loading) {
-        return;
-      }
+      if (this.data.loading) return;
       
       this.setData({ loading: true });
       
-      // 添加延迟，确保小程序完全初始化
       await new Promise(resolve => setTimeout(resolve, 200));
       
       const location = await getLocation();
       
-      // 打印用户当前坐标
       console.log('========= 用户当前坐标 =========');
       console.log(`纬度(latitude): ${location.latitude}`);
       console.log(`经度(longitude): ${location.longitude}`);
       console.log('================================');
       
-      // 更新位置信息
       this.setData({ 
         location,
         showLocationTip: false
       });
       
-      // 存储位置到本地缓存
       try {
         wx.setStorageSync('location', location);
       } catch (e) {
         console.warn('存储位置信息失败', e);
       }
       
-      // 获取位置后加载商户
       await this.loadMerchants(location);
     } catch (error) {
       console.error('获取位置失败', error);
@@ -128,8 +192,93 @@ Page({
       });
     }
   },
-  
-  // 加载商户数据
+
+  // 加载分类数据
+  async loadCategories() {
+    try {
+      const categories = await getCategories({ is_active: true });
+      const formattedCategories = CategoryUtils.formatCategories(categories);
+      const sortedCategories = CategoryUtils.sortCategories(formattedCategories);
+      const hotCategories = CategoryUtils.getHotCategories(sortedCategories, 8);
+      
+      this.setData({
+        categories: sortedCategories,
+        hotCategories
+      });
+      
+      // 缓存分类数据
+      CategoryUtils.cacheCategories(sortedCategories);
+      
+      console.log(`加载了${sortedCategories.length}个分类，其中${hotCategories.length}个热门分类`);
+      
+    } catch (error) {
+      console.error('加载分类失败', error);
+      // 如果网络请求失败，尝试使用缓存数据
+      const cachedCategories = CategoryUtils.getCachedCategories();
+      if (cachedCategories) {
+        this.setData({
+          categories: cachedCategories,
+          hotCategories: CategoryUtils.getHotCategories(cachedCategories, 8)
+        });
+      }
+    }
+  },
+
+  // 加载轮播图
+  async loadBanners() {
+    try {
+      // 这里可以调用轮播图API
+      // 暂时使用模拟数据
+      const banners = [
+        {
+          id: 1,
+          image: '/assets/images/banner1.jpg',
+          title: '新用户专享优惠',
+          link_type: 'category',
+          link_value: '1',
+          sort_order: 1
+        },
+        {
+          id: 2,
+          image: '/assets/images/banner2.jpg', 
+          title: '生鲜特惠周',
+          link_type: 'category',
+          link_value: '2',
+          sort_order: 2
+        }
+      ];
+      
+      this.setData({ banners });
+    } catch (error) {
+      console.error('加载轮播图失败', error);
+    }
+  },
+
+  // 加载推荐商户
+  async loadRecommendMerchants() {
+    try {
+      const { location } = this.data;
+      const params = {
+        limit: 6,
+        is_recommend: true,
+        status: 1
+      };
+      
+      if (location) {
+        params.latitude = location.latitude;
+        params.longitude = location.longitude;
+      }
+      
+      const result = await get(apiPath.merchant.list, params);
+      const merchants = result.data?.items || [];
+      
+      this.setData({ recommendMerchants: merchants.slice(0, 6) });
+    } catch (error) {
+      console.error('加载推荐商户失败', error);
+    }
+  },
+
+  // 加载商户数据（保持原有逻辑）
   async loadMerchants(location) {
     try {
       if (!location || !location.latitude || !location.longitude) {
@@ -138,39 +287,27 @@ Page({
         return;
       }
       
-      // 防重复请求
-      if (this.merchantsLoading) {
-        return;
-      }
+      if (this.merchantsLoading) return;
       this.merchantsLoading = true;
       
-      // 获取所有商户信息，包括边界信息
-      const result = await get(apiPath.merchant.list, {
-        limit: 100  // 获取足够数量的商户
-      });
-      
+      const result = await get(apiPath.merchant.list, { limit: 100 });
       const merchants = result.data?.items || [];
       
       console.log('========= 商户边界范围信息 =========');
       console.log(`获取到商户数量: ${merchants.length}`);
       
-      // 处理商户数据，判断用户是否在边界内
       const allMerchants = merchants.map(merchant => {
-        // 默认不在范围内
         let inRange = false;
         
-        // 检查商户是否有完整的边界信息
         if (merchant.north_boundary && merchant.south_boundary && 
             merchant.east_boundary && merchant.west_boundary) {
           
-          // 打印商户边界范围
           console.log(`\n商户ID: ${merchant.id}, 名称: ${merchant.name}`);
           console.log(`北边界(north): ${merchant.north_boundary}`);
           console.log(`南边界(south): ${merchant.south_boundary}`);
           console.log(`东边界(east): ${merchant.east_boundary}`);
           console.log(`西边界(west): ${merchant.west_boundary}`);
           
-          // 判断用户位置是否在边界内
           inRange = this.isPointInBoundary(location, {
             north: merchant.north_boundary,
             south: merchant.south_boundary,
@@ -181,23 +318,16 @@ Page({
           console.log(`用户是否在该商户边界内: ${inRange ? '是' : '否'}`);
         }
         
-        // 返回带有范围标记的商户
-        return {
-          ...merchant,
-          inRange
-        };
+        return { ...merchant, inRange };
       });
       
-      // 筛选边界内的商户
       const inBoundaryMerchants = allMerchants.filter(merchant => merchant.inRange);
       
       console.log(`\n用户在边界范围内的商户数量: ${inBoundaryMerchants.length}`);
       console.log('====================================');
       
-      // 如果有缓存的当前商户，检查是否在边界内
       const { currentMerchant } = this.data;
       if (currentMerchant && currentMerchant.id) {
-        // 在全部商户中找到当前商户并更新信息
         const updatedMerchant = allMerchants.find(merchant => merchant.id === currentMerchant.id);
         if (updatedMerchant) {
           this.setData({ currentMerchant: updatedMerchant });
@@ -209,7 +339,6 @@ Page({
         }
       }
       
-      // 更新数据
       this.setData({
         allMerchants,
         inBoundaryMerchants,
@@ -221,7 +350,6 @@ Page({
       console.error('加载商户数据失败', error);
       this.setData({ loading: false });
       
-      // 显示用户友好的错误提示
       wx.showToast({
         title: '加载商户信息失败',
         icon: 'none',
@@ -231,7 +359,7 @@ Page({
       this.merchantsLoading = false;
     }
   },
-  
+
   // 判断点是否在边界范围内
   isPointInBoundary(point, boundary) {
     if (!point || !boundary) return false;
@@ -244,7 +372,71 @@ Page({
            longitude <= east && 
            longitude >= west;
   },
-  
+
+  // 点击分类导航
+  onCategoryTap(e) {
+    const { id, name } = e.currentTarget.dataset;
+    CategoryNavigationUtils.navigateToCategory(parseInt(id), name);
+  },
+
+  // 查看全部分类
+  viewAllCategories() {
+    wx.switchTab({
+      url: '/pages/category/index'
+    });
+  },
+
+  // 切换分类显示
+  toggleCategoriesDisplay() {
+    this.setData({
+      showAllCategories: !this.data.showAllCategories
+    });
+  },
+
+  // 点击轮播图
+  onBannerTap(e) {
+    const { item } = e.currentTarget.dataset;
+    
+    if (!item) return;
+    
+    switch (item.link_type) {
+      case 'category':
+        CategoryNavigationUtils.navigateToCategory(parseInt(item.link_value));
+        break;
+      case 'merchant':
+        wx.navigateTo({
+          url: `/pages/merchant/detail/index?id=${item.link_value}`
+        });
+        break;
+      case 'product':
+        wx.navigateTo({
+          url: `/pages/product/detail/index?id=${item.link_value}`
+        });
+        break;
+      case 'url':
+        wx.navigateTo({
+          url: `/pages/webview/index?url=${encodeURIComponent(item.link_value)}`
+        });
+        break;
+      default:
+        console.log('未知链接类型:', item.link_type);
+    }
+  },
+
+  // 点击推荐商户
+  onRecommendMerchantTap(e) {
+    const { id } = e.currentTarget.dataset;
+    wx.navigateTo({
+      url: `/pages/merchant/detail/index?id=${id}`
+    });
+  },
+
+  // 搜索分类
+  searchCategory(e) {
+    const { keyword } = e.detail;
+    CategoryNavigationUtils.navigateToSearchWithCategory(0, keyword);
+  },
+
   // 切换商户面板显示
   toggleMerchantPanel() {
     this.setData({
@@ -264,18 +456,16 @@ Page({
     this.setData({
       currentMerchant: {},
       showMerchantPanel: false,
-      products: [],  // 清空商品列表
-      currentCategory: 'all'  // 重置分类
+      products: [],
+      currentCategory: 'all'
     });
     
-    // 重置分类状态
     const productCategories = this.data.productCategories.map(cat => ({
       ...cat,
       active: cat.key === 'all'
     }));
     this.setData({ productCategories });
     
-    // 清除缓存的商户
     wx.removeStorageSync('currentMerchant');
     
     wx.showToast({
@@ -296,34 +486,27 @@ Page({
     const { id } = e.currentTarget.dataset;
     const { allMerchants, currentMerchant } = this.data;
     
-    // 如果点击的是当前商户，关闭面板
     if (currentMerchant.id === id) {
       this.closeMerchantPanel();
       return;
     }
     
-    // 查找选中的商户
     const selectedMerchant = allMerchants.find(item => item.id === id);
     if (selectedMerchant) {
-      // 更新当前选中的商户
       this.setData({
         currentMerchant: selectedMerchant,
         showMerchantPanel: false
       });
       
-      // 缓存选中的商户
       wx.setStorageSync('currentMerchant', selectedMerchant);
       
-      // 提示用户已切换商户
       wx.showToast({
         title: '已切换到' + selectedMerchant.name,
         icon: 'success'
       });
       
-      // 加载该商户的商品
       this.loadMerchantProducts(selectedMerchant.id, true);
       
-      // 如果选中的商户不在服务范围内，提示用户
       if (!selectedMerchant.inRange) {
         setTimeout(() => {
           wx.showToast({
@@ -335,15 +518,14 @@ Page({
       }
     }
   },
-  
-  // 加载商户商品
+
+  // 加载商户商品（保持原有逻辑）
   async loadMerchantProducts(merchantId, reset = false) {
     if (!merchantId) {
       console.warn('商户ID不存在，跳过商品加载');
       return;
     }
     
-    // 防重复请求
     const requestKey = `${merchantId}_${this.data.currentCategory}_${reset}`;
     if (this.productLoadingKey === requestKey) {
       return;
@@ -351,14 +533,12 @@ Page({
     this.productLoadingKey = requestKey;
     
     try {
-      // 如果是重置加载，重置分页和分类
       if (reset) {
         this.setData({
           productPage: 1,
           hasMoreProducts: true
         });
         
-        // 如果是重置且分类不是当前选中的，则重置分类
         if (reset && this.data.currentCategory === 'all') {
           const productCategories = this.data.productCategories.map(cat => ({
             ...cat,
@@ -373,15 +553,13 @@ Page({
       
       this.setData({ loadingProducts: true });
       
-      // 构建请求参数
       const params = {
         merchant_id: merchantId,
         page: this.data.productPage,
         page_size: this.data.productPageSize,
-        status: 1  // 只获取上架商品
+        status: 1
       };
       
-      // 根据当前分类添加筛选条件
       const { currentCategory } = this.data;
       if (currentCategory === 'recommend') {
         params.is_recommend = true;
@@ -393,13 +571,11 @@ Page({
       
       console.log('请求商品参数:', params);
       
-      // 请求商品数据
       const result = await get(apiPath.product.list, params);
       const newProducts = result.data?.items || [];
       
       console.log(`获取到${newProducts.length}个商品`);
       
-      // 更新商品列表
       const products = reset ? newProducts : [...this.data.products, ...newProducts];
       
       this.setData({
@@ -424,16 +600,14 @@ Page({
       this.productLoadingKey = null;
     }
   },
-  
+
   // 切换商品分类
   switchProductCategory(e) {
     const { key } = e.currentTarget.dataset;
     const { currentCategory, currentMerchant } = this.data;
     
-    // 如果点击的是当前分类，不做处理
     if (currentCategory === key) return;
     
-    // 更新分类状态
     const productCategories = this.data.productCategories.map(cat => ({
       ...cat,
       active: cat.key === key
@@ -444,7 +618,6 @@ Page({
       currentCategory: key
     });
     
-    // 重新加载商品
     if (currentMerchant.id) {
       this.loadMerchantProducts(currentMerchant.id, true);
     }
@@ -469,7 +642,7 @@ Page({
       });
     }
   },
-  
+
   // 商品卡片点击事件
   onProductTap(e) {
     const { product, productId } = e.detail;
@@ -486,18 +659,15 @@ Page({
   async onProductFavorite(e) {
     const { product, productId, isFavorite } = e.detail;
     
-    // 检查登录状态
     if (!checkLoginStatus()) {
       return;
     }
     
     try {
-      // 调用收藏/取消收藏接口
       const result = await post(`/users/favorites/${productId}`, {}, {
         showLoading: false
       });
       
-      // 更新本地数据
       const { products } = this.data;
       const updatedProducts = products.map(item => {
         if (item.id === productId) {
@@ -531,12 +701,10 @@ Page({
   onProductBuy(e) {
     const { product, productId } = e.detail;
     
-    // 检查登录状态
     if (!checkLoginStatus()) {
       return;
     }
     
-    // 检查库存
     if (product.stock === 0) {
       wx.showToast({
         title: '商品暂时缺货',
@@ -545,7 +713,6 @@ Page({
       return;
     }
     
-    // 检查商户服务范围
     const { currentMerchant } = this.data;
     if (currentMerchant && !currentMerchant.inRange) {
       wx.showModal({
@@ -557,7 +724,6 @@ Page({
       return;
     }
     
-    // 检查是否有团购活动
     if (product.has_group && product.group_price) {
       wx.showModal({
         title: '发现团购活动',
@@ -566,16 +732,13 @@ Page({
         cancelText: '直接购买',
         success: (res) => {
           if (res.confirm) {
-            // 跳转到团购页面
             this.goToGroupPage(productId);
           } else {
-            // 直接购买
             this.goToBuyPage(productId);
           }
         }
       });
     } else {
-      // 直接购买
       this.goToBuyPage(productId);
     }
   },
@@ -594,75 +757,10 @@ Page({
     });
   },
 
-  // 添加到购物车
-  async addToCart(product, quantity = 1) {
-    try {
-      // 检查登录状态
-      if (!checkLoginStatus()) {
-        return false;
-      }
-      
-      // 获取当前购物车数据
-      let cart = wx.getStorageSync('cart') || [];
-      
-      // 查找是否已存在该商品
-      const existingIndex = cart.findIndex(item => 
-        item.product_id === product.id && 
-        item.merchant_id === product.merchant_id
-      );
-      
-      if (existingIndex >= 0) {
-        // 更新数量
-        cart[existingIndex].quantity += quantity;
-        cart[existingIndex].updated_at = new Date().getTime();
-      } else {
-        // 添加新商品
-        cart.push({
-          product_id: product.id,
-          merchant_id: product.merchant_id,
-          product_name: product.name,
-          product_image: product.thumbnail,
-          price: product.current_price,
-          group_price: product.group_price,
-          quantity: quantity,
-          selected: true,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime()
-        });
-      }
-      
-      // 保存到本地存储
-      wx.setStorageSync('cart', cart);
-      
-      // 更新全局购物车数量
-      const app = getApp();
-      if (app) {
-        const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-        app.globalData.cartCount = totalCount;
-      }
-      
-      wx.showToast({
-        title: '已添加到购物车',
-        icon: 'success'
-      });
-      
-      return true;
-      
-    } catch (error) {
-      console.error('添加到购物车失败', error);
-      wx.showToast({
-        title: '添加失败，请重试',
-        icon: 'none'
-      });
-      return false;
-    }
-  },
-  
   // 页面上拉触底事件的处理函数
   onReachBottom() {
     const { currentMerchant, hasMoreProducts, loadingProducts } = this.data;
     
-    // 如果有选中商户、还有更多商品且不在加载中，则加载更多
     if (currentMerchant.id && hasMoreProducts && !loadingProducts) {
       this.loadMerchantProducts(currentMerchant.id, false);
     }
@@ -674,6 +772,8 @@ Page({
     
     Promise.all([
       this.getCurrentLocation(),
+      this.loadCategories(),
+      this.loadRecommendMerchants(),
       currentMerchant.id ? this.loadMerchantProducts(currentMerchant.id, true) : Promise.resolve()
     ]).finally(() => {
       wx.stopPullDownRefresh();
@@ -683,5 +783,22 @@ Page({
   // 关闭位置提示
   closeLocationTip() {
     this.setData({ showLocationTip: false });
+  },
+
+  // 页面分享
+  onShareAppMessage() {
+    return {
+      title: '发现身边好商户，享受便民团购服务',
+      path: '/pages/index/index',
+      imageUrl: '/assets/images/share-index.png'
+    };
+  },
+
+  // 分享到朋友圈
+  onShareTimeline() {
+    return {
+      title: '团购小程序 - 让团购更简单',
+      imageUrl: '/assets/images/share-timeline.png'
+    };
   }
 });
