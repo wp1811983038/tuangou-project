@@ -1,250 +1,285 @@
-<!--pages/category/index.wxml - 支持商户分类的完善界面-->
+<!--pages/category/index.wxml - 重新设计的分类页面-->
 <view class="container">
-  <!-- 顶部搜索栏 -->
-  <view class="search-header">
-    <view class="search-bar">
-      <icon type="search" size="16" color="#999"></icon>
-      <input class="search-input" 
-             placeholder="{{isMerchantMode ? '搜索' + currentMerchant.name + '的商品' : '搜索商家、商品'}}" 
-             value="{{searchKeyword}}"
-             bindinput="onSearchInput"
-             confirm-type="search"
-             bindconfirm="performSearch" />
-      <view class="clear-search" wx:if="{{searchKeyword}}" bindtap="clearSearch">
-        <icon type="clear" size="14" color="#999"></icon>
-      </view>
-    </view>
-    
-    <!-- 显示模式切换 - 商户模式下隐藏 -->
-    <view class="mode-switch" wx:if="{{!isMerchantMode}}">
-      <view class="mode-item {{displayMode === 'merchants' ? 'active' : ''}}" 
-            data-mode="merchants" 
-            bindtap="switchDisplayMode">
-        <text>商户</text>
-      </view>
-      <view class="mode-item {{displayMode === 'products' ? 'active' : ''}}" 
-            data-mode="products" 
-            bindtap="switchDisplayMode">
-        <text>商品</text>
-      </view>
+
+<!-- 商户模式状态栏 -->
+<view class="merchant-mode-bar" wx:if="{{isMerchantMode && currentMerchant.id}}">
+  <view class="merchant-info">
+    <image class="merchant-avatar" src="{{currentMerchant.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+    <view class="merchant-details">
+      <text class="merchant-name">{{currentMerchant.name}}</text>
+      <text class="merchant-subtitle">商品分类</text>
     </view>
   </view>
-
-  <!-- 商户模式状态栏 -->
-  <view class="merchant-mode-bar" wx:if="{{isMerchantMode}}">
-    <view class="merchant-info">
-      <image class="merchant-avatar" src="{{currentMerchant.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
-      <view class="merchant-details">
-        <text class="merchant-name">{{currentMerchant.name}}</text>
-        <text class="merchant-tip">正在浏览该商户的商品分类</text>
-      </view>
+  <view class="mode-actions">
+    <view class="action-btn switch-btn" bindtap="showMerchantSwitchPanel">
+      <text class="btn-text">切换</text>
     </view>
-    <view class="back-to-global" bindtap="backToGlobal">
-      <text class="back-text">查看全部商户</text>
-      <icon type="download" size="12" color="#FF4D4F" style="transform: rotate(-90deg); margin-left: 4rpx;"></icon>
+    <view class="action-btn global-btn" bindtap="backToGlobal">
+      <text class="btn-text">全部商户</text>
     </view>
   </view>
+</view>
 
-  <!-- 筛选和排序栏 -->
-  <view class="filter-bar">
-    <view class="current-category">
-      <text>{{currentCategory.name || '全部'}}</text>
-      <text class="category-count" wx:if="{{displayMode === 'merchants' && !isMerchantMode}}">
-        ({{merchants.length}}家)
-      </text>
-      <text class="category-count" wx:if="{{displayMode === 'products'}}">
-        ({{products.length}}件)
-      </text>
+<!-- 全局模式顶部搜索栏 -->
+<view class="search-header" wx:if="{{!isMerchantMode}}">
+  <view class="search-bar">
+    <icon type="search" size="16" color="#999"></icon>
+    <input class="search-input" 
+           placeholder="搜索商户、商品" 
+           value="{{searchKeyword}}"
+           bindinput="onSearchInput"
+           confirm-type="search"
+           bindconfirm="performSearch" />
+    <view class="clear-search" wx:if="{{searchKeyword}}" bindtap="clearSearch">
+      <icon type="clear" size="14" color="#999"></icon>
     </view>
-    
+  </view>
+  
+  <!-- 显示模式切换 -->
+  <view class="mode-switch">
+    <view class="mode-item {{displayMode === 'merchants' ? 'active' : ''}}" 
+          data-mode="merchants" 
+          bindtap="switchDisplayMode">
+      <text>商户</text>
+    </view>
+    <view class="mode-item {{displayMode === 'products' ? 'active' : ''}}" 
+          data-mode="products" 
+          bindtap="switchDisplayMode">
+      <text>商品</text>
+    </view>
+  </view>
+</view>
+
+<!-- 商户模式搜索栏 -->
+<view class="merchant-search-bar" wx:if="{{isMerchantMode}}">
+  <view class="search-input-wrapper">
+    <icon type="search" size="16" color="#999"></icon>
+    <input class="search-input" 
+           placeholder="搜索{{currentMerchant.name}}的商品" 
+           value="{{searchKeyword}}"
+           bindinput="onSearchInput"
+           confirm-type="search"
+           bindconfirm="performSearch" />
+    <view class="clear-search" wx:if="{{searchKeyword}}" bindtap="clearSearch">
+      <icon type="clear" size="14" color="#999"></icon>
+    </view>
+  </view>
+</view>
+
+<!-- 筛选和排序栏 -->
+<view class="filter-bar">
+  <view class="current-category">
+    <text class="category-name">{{currentCategory.name || '全部'}}</text>
+    <text class="category-count">
+      ({{isMerchantMode ? products.length : (displayMode === 'merchants' ? merchants.length : products.length)}}{{isMerchantMode ? '件' : (displayMode === 'merchants' ? '家' : '件')}})
+    </text>
+  </view>
+  
+  <view class="filter-actions">
     <view class="sort-btn" bindtap="showSortPanel">
       <text class="sort-text">{{currentSortName}}</text>
       <icon type="download" size="12" color="#666"></icon>
     </view>
   </view>
+</view>
 
-  <view class="content-container">
-    <!-- 左侧分类导航 -->
-    <scroll-view class="category-sidebar" scroll-y="{{true}}">
-      <view wx:for="{{categories}}" 
-            wx:key="id" 
-            class="sidebar-item {{currentCategory.id === item.id ? 'active' : ''}}"
-            bindtap="switchCategory"
-            data-id="{{item.id}}">
-        <image class="category-icon" 
-               src="{{item.icon || '/assets/images/logo.png'}}" 
-               mode="aspectFit"
-               wx:if="{{item.icon}}"></image>
-        <text class="category-name">{{item.name}}</text>
-        <text class="category-count" 
-              wx:if="{{item.merchant_count || item.product_count}}">
-          {{displayMode === 'merchants' && !isMerchantMode ? item.merchant_count : item.product_count}}
-        </text>
+<view class="content-container">
+  <!-- 左侧分类导航 -->
+  <scroll-view class="category-sidebar" scroll-y="{{true}}">
+    <!-- 分类列表 -->
+    <view wx:for="{{categories}}" 
+          wx:key="id" 
+          class="sidebar-item {{currentCategory.id === item.id ? 'active' : ''}}"
+          bindtap="switchCategory"
+          data-id="{{item.id}}">
+      <image class="category-icon" 
+             src="{{item.icon || '/assets/images/logo.png'}}" 
+             mode="aspectFit"
+             wx:if="{{item.icon && !isMerchantMode}}"></image>
+      <view class="category-emoji" wx:if="{{isMerchantMode}}">
+        <text>{{getCategoryEmoji(item.name)}}</text>
       </view>
-    </scroll-view>
+      <text class="category-name">{{item.name}}</text>
+      <text class="category-count" wx:if="{{item.product_count > 0}}">
+        {{item.product_count}}
+      </text>
+    </view>
+  </scroll-view>
 
-    <!-- 右侧内容区域 -->
-    <scroll-view class="content-list" 
-                 scroll-y="{{true}}" 
-                 bindscrolltolower="loadMore"
-                 refresher-enabled="{{true}}"
-                 refresher-triggered="{{refreshing}}"
-                 bindrefresherrefresh="onPullDownRefresh">
-      
-      <!-- 商户列表 - 非商户模式才显示 -->
-      <block wx:if="{{displayMode === 'merchants' && !isMerchantMode}}">
-        <view class="merchant-list" wx:if="{{merchants.length > 0}}">
-          <view class="merchant-item" 
-                wx:for="{{merchants}}" 
-                wx:key="id" 
-                bindtap="goToMerchant" 
-                data-id="{{item.id}}">
-            <image class="merchant-logo" 
-                   src="{{item.logo || '/assets/images/logo.png'}}" 
-                   mode="aspectFill"></image>
-            <view class="merchant-info">
-              <view class="merchant-name">{{item.name}}</view>
-              <view class="merchant-tags" wx:if="{{item.categories && item.categories.length > 0}}">
-                <text class="merchant-tag" wx:for="{{item.categories}}" wx:key="id" wx:for-item="category">
-                  {{category.name}}
-                </text>
+  <!-- 右侧内容区域 -->
+  <scroll-view class="content-list" 
+               scroll-y="{{true}}" 
+               bindscrolltolower="loadMore"
+               refresher-enabled="{{true}}"
+               refresher-triggered="{{refreshing}}"
+               bindrefresherrefresh="onPullDownRefresh">
+    
+    <!-- 商户列表（非商户模式才显示） -->
+    <block wx:if="{{displayMode === 'merchants' && !isMerchantMode}}">
+      <view class="merchant-list" wx:if="{{merchants.length > 0}}">
+        <view class="merchant-item" 
+              wx:for="{{merchants}}" 
+              wx:key="id" 
+              bindtap="selectMerchant" 
+              data-merchant="{{item}}">
+          <image class="merchant-logo" 
+                 src="{{item.logo || '/assets/images/logo.png'}}" 
+                 mode="aspectFill"></image>
+          <view class="merchant-info">
+            <view class="merchant-name">{{item.name}}</view>
+            <view class="merchant-tags" wx:if="{{item.categories && item.categories.length > 0}}">
+              <text class="merchant-tag" wx:for="{{item.categories}}" wx:key="id" wx:for-item="category">
+                {{category.name}}
+              </text>
+            </view>
+            <view class="merchant-desc" wx:if="{{item.description}}">{{item.description}}</view>
+            <view class="merchant-meta">
+              <view class="rating" wx:if="{{item.rating}}">
+                <text class="rating-score">{{item.rating}}</text>
+                <text class="rating-text">分</text>
               </view>
-              <view class="merchant-desc" wx:if="{{item.description}}">{{item.description}}</view>
-              <view class="merchant-meta">
-                <view class="rating" wx:if="{{item.rating}}">
-                  <text class="rating-score">{{item.rating}}</text>
-                  <text class="rating-text">分</text>
-                </view>
-                <view class="distance" wx:if="{{item.distance}}">{{item.distance}}</view>
-                <view class="delivery-info" wx:if="{{item.delivery_fee !== undefined}}">
-                  配送费¥{{item.delivery_fee || '免费'}}
-                </view>
-              </view>
-              <view class="merchant-status">
-                <text class="status-text {{item.is_open ? 'open' : 'closed'}}">
-                  {{item.is_open ? '营业中' : '休息中'}}
-                </text>
-                <text class="business-hours" wx:if="{{item.business_hours}}">{{item.business_hours}}</text>
+              <view class="distance" wx:if="{{item.distance}}">{{item.distance}}</view>
+              <view class="delivery-info" wx:if="{{item.delivery_fee !== undefined}}">
+                {{item.delivery_fee > 0 ? '配送费¥' + item.delivery_fee : '免配送费'}}
               </view>
             </view>
-            <view class="merchant-arrow">
-              <icon type="download" size="12" color="#ccc" style="transform: rotate(-90deg);"></icon>
+            <view class="merchant-status">
+              <text class="status-text {{item.is_open ? 'open' : 'closed'}}">
+                {{item.is_open ? '营业中' : '休息中'}}
+              </text>
+              <text class="business-hours" wx:if="{{item.business_hours}}">{{item.business_hours}}</text>
             </view>
           </view>
-        </view>
-      </block>
-
-      <!-- 商品列表 -->
-      <block wx:if="{{displayMode === 'products'}}">
-        <view class="products-grid" wx:if="{{products.length > 0}}">
-          <view class="product-item" 
-                wx:for="{{products}}" 
-                wx:key="id" 
-                bindtap="goToProduct" 
-                data-id="{{item.id}}">
-            <view class="product-image-wrapper">
-              <image class="product-image" 
-                     src="{{item.thumbnail || '/assets/images/logo.png'}}" 
-                     mode="aspectFill"></image>
-              
-              <!-- 商品标签 -->
-              <view class="product-tags" wx:if="{{item.is_hot || item.is_new || item.is_recommend}}">
-                <text class="product-tag hot" wx:if="{{item.is_hot}}">热门</text>
-                <text class="product-tag new" wx:if="{{item.is_new}}">新品</text>
-                <text class="product-tag recommend" wx:if="{{item.is_recommend}}">推荐</text>
-              </view>
-
-              <!-- 缺货遮罩 -->
-              <view class="out-of-stock-mask" wx:if="{{item.stock === 0}}">
-                <text class="out-of-stock-text">暂时缺货</text>
-              </view>
-            </view>
-            
-            <view class="product-info">
-              <text class="product-name">{{item.name}}</text>
-              <!-- 非商户模式下显示商户名称 -->
-              <text class="merchant-name" wx:if="{{!isMerchantMode && item.merchant_name}}">{{item.merchant_name}}</text>
-              
-              <view class="product-price">
-                <text class="current-price">¥{{item.current_price}}</text>
-                <text class="original-price" wx:if="{{item.original_price > item.current_price}}">
-                  ¥{{item.original_price}}
-                </text>
-                <text class="group-price" wx:if="{{item.group_price && item.has_group}}">
-                  团购¥{{item.group_price}}
-                </text>
-              </view>
-              
-              <view class="product-stats">
-                <text class="sales">已售{{item.sales || 0}}</text>
-                <text class="stock" wx:if="{{item.stock <= 10 && item.stock > 0}}">
-                  仅剩{{item.stock}}件
-                </text>
-              </view>
-            </view>
+          <view class="merchant-arrow">
+            <icon type="download" size="12" color="#ccc" style="transform: rotate(-90deg);"></icon>
           </view>
         </view>
-      </block>
-
-      <!-- 加载状态 -->
-      <view class="loading-container" wx:if="{{merchantsLoading || productsLoading}}">
-        <view class="loading-spinner"></view>
-        <text class="loading-text">加载中...</text>
       </view>
+    </block>
 
-      <!-- 空状态 -->
-      <view class="empty-state" wx:if="{{!loading && ((displayMode === 'merchants' && merchants.length === 0 && !isMerchantMode) || (displayMode === 'products' && products.length === 0))}}">
-        <image class="empty-icon" src="/assets/images/logo.png" mode="aspectFit"></image>
-        <text class="empty-text">
-          {{searchKeyword ? '没有找到相关' + (displayMode === 'merchants' ? '商户' : '商品') : 
-            (isMerchantMode ? 
-              (currentMerchant.name + '暂无' + (currentCategory.name === '全部' ? '' : currentCategory.name) + '商品') : 
-              '暂无' + (displayMode === 'merchants' ? '商户' : '商品')
-            )
-          }}
-        </text>
-        <view class="empty-action" wx:if="{{searchKeyword}}" bindtap="clearSearch">
-          <text>清除搜索条件</text>
-        </view>
-        <view class="empty-action" wx:elif="{{isMerchantMode}}" bindtap="backToGlobal">
-          <text>查看其他商户</text>
+    <!-- 商品列表 -->
+    <block wx:if="{{displayMode === 'products' || isMerchantMode}}">
+      <view class="products-section" wx:if="{{products.length > 0}}">
+        <!-- 商品网格布局 -->
+        <view class="products-grid">
+          <product-card 
+            wx:for="{{products}}" 
+            wx:key="id"
+            product="{{item}}"
+            mode="grid"
+            show-merchant="{{!isMerchantMode}}"
+            bind:tap="onProductTap"
+            bind:favorite="onProductFavorite"
+            bind:buy="onProductBuy">
+          </product-card>
         </view>
       </view>
+    </block>
 
-      <!-- 加载更多提示 -->
-      <view class="load-more-tip" wx:if="{{(displayMode === 'merchants' && merchants.length > 0 && !isMerchantMode) || (displayMode === 'products' && products.length > 0)}}">
-        <text wx:if="{{(displayMode === 'merchants' && merchantsHasMore) || (displayMode === 'products' && productsHasMore)}}">
-          上拉加载更多
-        </text>
-        <text wx:else>已显示全部内容</text>
-      </view>
-    </scroll-view>
-  </view>
-
-  <!-- 排序面板 -->
-  <view class="sort-panel-mask" wx:if="{{showSortPanel}}" bindtap="hideSortPanel"></view>
-  <view class="sort-panel {{showSortPanel ? 'show' : ''}}">
-    <view class="sort-panel-header">
-      <text class="sort-panel-title">排序方式</text>
-      <view class="sort-panel-close" bindtap="hideSortPanel">×</view>
-    </view>
-    <view class="sort-options">
-      <view class="sort-option {{sortBy === item.value ? 'active' : ''}}" 
-            wx:for="{{sortOptions}}" 
-            wx:key="value"
-            data-value="{{item.value}}"
-            bindtap="selectSort">
-        <text class="sort-option-text">{{item.label}}</text>
-        <icon type="success" size="16" color="#FF4D4F" wx:if="{{sortBy === item.value}}"></icon>
-      </view>
-    </view>
-  </view>
-
-  <!-- 主加载状态 -->
-  <view class="page-loading" wx:if="{{loading}}">
-    <view class="loading-container">
+    <!-- 加载状态 -->
+    <view class="loading-container" wx:if="{{loading}}">
       <view class="loading-spinner"></view>
       <text class="loading-text">加载中...</text>
     </view>
+
+    <!-- 加载更多状态 -->
+    <view class="load-more-container" wx:if="{{loadingMore}}">
+      <view class="loading-spinner small"></view>
+      <text class="loading-text">加载更多...</text>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!loading && !loadingMore && ((displayMode === 'merchants' && merchants.length === 0 && !isMerchantMode) || ((displayMode === 'products' || isMerchantMode) && products.length === 0))}}">
+      <view class="empty-icon">
+        <text class="iconfont icon-empty"></text>
+      </view>
+      <text class="empty-text">
+        {{getEmptyText()}}
+      </text>
+      <view class="empty-actions">
+        <view class="empty-action" wx:if="{{searchKeyword}}" bindtap="clearSearch">
+          <text>清除搜索条件</text>
+        </view>
+        <view class="empty-action" wx:elif="{{isMerchantMode}}" bindtap="switchCategory" data-id="0">
+          <text>查看全部商品</text>
+        </view>
+        <view class="empty-action" wx:elif="{{currentCategory.id > 0}}" bindtap="switchCategory" data-id="0">
+          <text>查看全部分类</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 到底提示 -->
+    <view class="bottom-tip" wx:if="{{!loading && !loadingMore && ((displayMode === 'merchants' && merchants.length > 0 && !isMerchantMode) || ((displayMode === 'products' || isMerchantMode) && products.length > 0))}}">
+      <text wx:if="{{hasMore}}">上拉加载更多</text>
+      <text wx:else>已显示全部内容</text>
+    </view>
+  </scroll-view>
+</view>
+
+<!-- 排序面板 -->
+<view class="sort-panel-mask" wx:if="{{showSortPanel}}" bindtap="hideSortPanel"></view>
+<view class="sort-panel {{showSortPanel ? 'show' : ''}}">
+  <view class="sort-panel-header">
+    <text class="sort-panel-title">排序方式</text>
+    <view class="sort-panel-close" bindtap="hideSortPanel">×</view>
   </view>
+  <view class="sort-options">
+    <view class="sort-option {{sortBy === item.value ? 'active' : ''}}" 
+          wx:for="{{getSortOptions()}}" 
+          wx:key="value"
+          data-value="{{item.value}}"
+          bindtap="selectSort">
+      <text class="sort-option-text">{{item.label}}</text>
+      <icon type="success" size="16" color="#FF4D4F" wx:if="{{sortBy === item.value}}"></icon>
+    </view>
+  </view>
+</view>
+
+<!-- 商户切换面板 -->
+<view class="merchant-switch-mask" wx:if="{{showMerchantSwitchPanel}}" bindtap="hideMerchantSwitchPanel"></view>
+<view class="merchant-switch-panel {{showMerchantSwitchPanel ? 'show' : ''}}">
+  <view class="switch-panel-header">
+    <text class="switch-panel-title">切换商户</text>
+    <view class="switch-panel-close" bindtap="hideMerchantSwitchPanel">×</view>
+  </view>
+  
+  <!-- 当前位置选项 -->
+  <view class="location-option" bindtap="backToGlobal">
+    <view class="option-icon">
+      <text class="iconfont icon-location-current"></text>
+    </view>
+    <view class="option-info">
+      <text class="option-title">浏览全部商户</text>
+      <text class="option-desc">查看所有商户和商品</text>
+    </view>
+  </view>
+  
+  <!-- 商户列表 -->
+  <scroll-view scroll-y="true" class="switch-merchant-list">
+    <view class="switch-merchant-item" 
+          wx:for="{{allMerchants}}" 
+          wx:key="id"
+          data-merchant="{{item}}"
+          bindtap="switchToMerchant">
+      <image class="switch-item-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+      <view class="switch-item-info">
+        <text class="switch-item-name">{{item.name}}</text>
+        <text class="switch-item-desc">{{item.description || ''}}</text>
+      </view>
+      <view class="switch-item-selected" wx:if="{{currentMerchant.id === item.id}}">
+        <text class="iconfont icon-check"></text>
+      </view>
+    </view>
+  </scroll-view>
+</view>
+
+<!-- 主加载状态 -->
+<view class="page-loading" wx:if="{{pageLoading}}">
+  <view class="page-loading-container">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>
+
 </view>

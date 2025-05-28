@@ -1,10 +1,16 @@
 {
   "navigationBarTitleText": "团购小程序",
   "enablePullDownRefresh": true,
-  "backgroundColor": "#F8F8F8",
+  "backgroundColor": "#f8f9fa",
+  "backgroundTextStyle": "dark",
   "navigationBarBackgroundColor": "#FF4D4F",
   "navigationBarTextStyle": "white",
+  "onReachBottomDistance": 100,
   "usingComponents": {
     "product-card": "/components/product-card/index"
+  },
+  "style": "v2",
+  "singlePage": {
+    "navigationBarFit": "squeezed"
   }
 }

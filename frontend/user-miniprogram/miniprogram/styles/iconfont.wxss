@@ -1,0 +1,53 @@
+/* styles/iconfont.wxss - 基础图标字体样式 */
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 如果你没有图标字体，可以用以下 Unicode 字符替代 */
+
+.icon-location::before { content: "📍"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-shop::before { content: "🏪"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-search::before { content: "🔍"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-message::before { content: "💬"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-category::before { content: "📁"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-group::before { content: "👥"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-nearby::before { content: "🏪"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-order::before { content: "📋"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-arrow-right::before { content: "▶"; }
+.icon-arrow-down::before { content: "▼"; }
+.icon-close::before { content: "✕"; }
+.icon-check::before { content: "✓"; }
+.icon-empty::before { content: "📦"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+.icon-location-current::before { content: "🎯"; font-family: "Apple Color Emoji", "Segoe UI Emoji"; }
+
+/* 你也可以使用纯CSS图标 */
+.icon-heart {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  position: relative;
+}
+
+.icon-heart::before,
+.icon-heart::after {
+  content: '';
+  width: 0.5em;
+  height: 0.8em;
+  position: absolute;
+  left: 0.5em;
+  transform: rotate(-45deg);
+  transform-origin: 0 100%;
+  border-radius: 0.5em 0.5em 0 0;
+  background: currentColor;
+}
+
+.icon-heart::after {
+  left: 0;
+  transform: rotate(45deg);
+  transform-origin: 100% 100%;
+}

@@ -1,306 +1,321 @@
-<!--pages/index/index.wxml-->
+<!--pages/index/index.wxml - 重新设计的现代化首页-->
 <view class="container">
-  <!-- 位置授权提示 -->
-  <view class="location-tip" wx:if="{{showLocationTip}}">
-    <view class="location-tip-content">
-      <view class="location-tip-icon">
-        <icon type="warn" size="16" color="#FF4D4F"></icon>
+  
+  <!-- 顶部导航栏 -->
+  <view class="top-nav">
+    <!-- 位置信息/当前商户 -->
+    <view class="location-info" bindtap="toggleLocationPanel">
+      <view class="location-icon">
+        <text class="iconfont {{currentMerchant.id ? 'icon-shop' : 'icon-location'}}"></text>
       </view>
-      <view class="location-tip-text">位置获取失败，无法显示附近商户</view>
-      <view class="location-tip-actions">
-        <text class="location-tip-btn" bindtap="getCurrentLocation">重试</text>
-        <text class="location-tip-close" bindtap="closeLocationTip">×</text>
+      <view class="location-text">
+        <text class="location-name">
+          {{currentMerchant.id ? currentMerchant.name : (location.name || '定位中...')}}
+        </text>
+        <text class="location-detail">
+          {{currentMerchant.id ? '当前商户' : (location.address || '')}}
+        </text>
       </view>
-    </view>
-  </view>
-
-  <!-- 顶部搜索栏和位置/商户选择区域 -->
-  <view class="top-container">
-    <!-- 左上角位置/商户选择器 -->
-    <view class="location-merchant-selector" bindtap="toggleMerchantPanel">
-      <text class="selector-text">{{currentMerchant.id ? currentMerchant.name : (location.name || '定位中...')}}</text>
-      <view class="selector-arrow"></view>
+      <view class="location-arrow">
+        <text class="iconfont icon-arrow-down"></text>
+      </view>
     </view>
     
-    <!-- 搜索区域 -->
-    <view class="search-bar" bindtap="goToSearch">
-      <icon type="search" size="14" color="#999"></icon>
-      <text class="search-placeholder">搜索商品</text>
+    <!-- 搜索按钮 -->
+    <view class="search-btn" bindtap="goToSearch">
+      <text class="iconfont icon-search"></text>
+    </view>
+    
+    <!-- 消息按钮 -->
+    <view class="message-btn" bindtap="goToMessages">
+      <text class="iconfont icon-message"></text>
+      <view class="message-badge" wx:if="{{messageCount > 0}}">
+        <text class="badge-text">{{messageCount > 99 ? '99+' : messageCount}}</text>
+      </view>
     </view>
   </view>
 
-  <!-- 轮播图 -->
+  <!-- 搜索栏 -->
+  <view class="search-section">
+    <view class="search-bar" bindtap="goToSearch">
+      <text class="iconfont icon-search"></text>
+      <text class="search-placeholder">搜索商户、商品</text>
+    </view>
+  </view>
+
+  <!-- 轮播广告 -->
   <view class="banner-section" wx:if="{{banners.length > 0}}">
     <swiper class="banner-swiper" 
             indicator-dots="{{true}}" 
+            indicator-color="rgba(255,255,255,0.5)"
+            indicator-active-color="#FF4D4F"
             autoplay="{{true}}" 
-            interval="{{3000}}" 
-            duration="{{500}}"
-            circular="{{true}}">
+            interval="{{4000}}" 
+            duration="{{800}}"
+            circular="{{true}}"
+            previous-margin="30rpx"
+            next-margin="30rpx">
       <swiper-item wx:for="{{banners}}" wx:key="id">
-        <image class="banner-image" 
-               src="{{item.image}}" 
-               mode="aspectFill"
-               data-item="{{item}}"
-               bindtap="onBannerTap"></image>
+        <view class="banner-item" data-item="{{item}}" bindtap="onBannerTap">
+          <image class="banner-image" src="{{item.image}}" mode="aspectFill"></image>
+          <view class="banner-overlay">
+            <text class="banner-title">{{item.title}}</text>
+            <text class="banner-desc">{{item.description}}</text>
+          </view>
+        </view>
       </swiper-item>
     </swiper>
   </view>
 
-  <!-- 分类导航 -->
-  <view class="category-section" wx:if="{{hotCategories.length > 0}}">
-    <view class="section-header">
-      <text class="section-title">商品分类</text>
-      <view class="view-all-btn" bindtap="viewAllCategories">
-        <text class="view-all-text">全部</text>
-        <icon type="download" size="12" color="#999" style="transform: rotate(-90deg); margin-left: 4rpx;"></icon>
+  <!-- 快捷功能区 -->
+  <view class="quick-actions">
+    <view class="action-item" bindtap="goToCategory">
+      <view class="action-icon category-icon">
+        <text class="iconfont icon-category"></text>
       </view>
+      <text class="action-text">分类</text>
     </view>
     
-    <view class="categories-grid">
-      <view class="category-item" 
-            wx:for="{{showAllCategories ? categories : hotCategories}}" 
-            wx:key="id"
-            data-id="{{item.id}}"
-            data-name="{{item.name}}"
-            bindtap="onCategoryTap">
-        <view class="category-icon-wrapper">
-          <image class="category-icon" 
-                 src="{{item.icon || '/assets/images/logo.png'}}" 
-                 mode="aspectFit"></image>
-          <view class="category-badge" wx:if="{{item.merchant_count > 0}}">
-            <text class="badge-text">{{item.merchant_count}}</text>
-          </view>
-        </view>
-        <text class="category-name">{{item.name}}</text>
+    <view class="action-item" bindtap="goToGroups">
+      <view class="action-icon group-icon">
+        <text class="iconfont icon-group"></text>
       </view>
-      
-      <!-- 更多分类按钮（仅显示热门分类时） -->
-      <view class="category-item more-category" 
-            wx:if="{{!showAllCategories && categories.length > hotCategories.length}}"
-            bindtap="toggleCategoriesDisplay">
-        <view class="category-icon-wrapper">
-          <view class="more-icon">
-            <text class="more-text">···</text>
-          </view>
-        </view>
-        <text class="category-name">更多</text>
-      </view>
+      <text class="action-text">团购</text>
     </view>
     
-    <!-- 收起按钮 -->
-    <view class="collapse-btn" wx:if="{{showAllCategories}}" bindtap="toggleCategoriesDisplay">
-      <text class="collapse-text">收起</text>
-      <icon type="download" size="12" color="#666" style="transform: rotate(180deg); margin-left: 4rpx;"></icon>
+    <view class="action-item" bindtap="goToNearby">
+      <view class="action-icon nearby-icon">
+        <text class="iconfont icon-nearby"></text>
+      </view>
+      <text class="action-text">附近</text>
+    </view>
+    
+    <view class="action-item" bindtap="goToOrders">
+      <view class="action-icon order-icon">
+        <text class="iconfont icon-order"></text>
+      </view>
+      <text class="action-text">订单</text>
     </view>
   </view>
 
-  <!-- 推荐商户 -->
-  <view class="recommend-section" wx:if="{{recommendMerchants.length > 0 && !currentMerchant.id}}">
+  <!-- 商户推荐区 -->
+  <view class="merchant-section" wx:if="{{!currentMerchant.id && recommendMerchants.length > 0}}">
     <view class="section-header">
-      <text class="section-title">推荐商户</text>
-      <view class="view-all-btn" bindtap="viewAllCategories">
-        <text class="view-all-text">更多</text>
-        <icon type="download" size="12" color="#999" style="transform: rotate(-90deg); margin-left: 4rpx;"></icon>
+      <view class="section-title">
+        <text class="title-text">推荐商户</text>
+        <text class="title-desc">精选优质商户</text>
+      </view>
+      <view class="section-more" bindtap="goToMerchantList">
+        <text class="more-text">更多</text>
+        <text class="iconfont icon-arrow-right"></text>
       </view>
     </view>
     
-    <scroll-view class="merchants-scroll" scroll-x="{{true}}">
-      <view class="merchants-list">
+    <scroll-view class="merchant-scroll" scroll-x="{{true}}" show-scrollbar="{{false}}">
+      <view class="merchant-list">
         <view class="merchant-card" 
               wx:for="{{recommendMerchants}}" 
               wx:key="id"
-              data-id="{{item.id}}"
-              bindtap="onRecommendMerchantTap">
-          <image class="merchant-logo" 
-                 src="{{item.logo || '/assets/images/logo.png'}}" 
-                 mode="aspectFill"></image>
+              data-merchant="{{item}}"
+              bindtap="selectMerchant">
+          <view class="merchant-image-wrapper">
+            <image class="merchant-image" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+            <view class="merchant-status {{item.is_open ? 'open' : 'closed'}}">
+              <text class="status-text">{{item.is_open ? '营业中' : '休息中'}}</text>
+            </view>
+          </view>
           <view class="merchant-info">
             <text class="merchant-name">{{item.name}}</text>
             <view class="merchant-meta">
-              <text class="rating" wx:if="{{item.rating}}">{{item.rating}}分</text>
-              <text class="distance" wx:if="{{item.distance}}">{{item.distance}}</text>
+              <text class="merchant-rating" wx:if="{{item.rating}}">⭐ {{item.rating}}</text>
+              <text class="merchant-distance" wx:if="{{item.distance}}">{{item.distance}}</text>
             </view>
+            <text class="merchant-desc">{{item.description || ''}}</text>
           </view>
         </view>
       </view>
     </scroll-view>
   </view>
-  
-  <!-- 商户列表面板 -->
-  <view class="merchant-panel-mask" wx:if="{{showMerchantPanel}}" bindtap="closeMerchantPanel"></view>
-  <view class="merchant-panel {{showMerchantPanel ? 'show' : ''}}">
-    <view class="merchant-panel-header">
-      <text class="merchant-panel-title">选择商户</text>
-      <view class="merchant-panel-close" bindtap="closeMerchantPanel">×</view>
+
+  <!-- 当前商户操作栏（仅在选中商户时显示） -->
+  <view class="merchant-actions-bar" wx:if="{{currentMerchant.id}}">
+    <view class="merchant-quick-info">
+      <image class="merchant-mini-logo" src="{{currentMerchant.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+      <text class="merchant-mini-name">{{currentMerchant.name}}</text>
     </view>
-    
-    <!-- 回到当前位置选项 -->
-    <view class="location-option" bindtap="selectCurrentLocation" wx:if="{{currentMerchant.id}}">
-      <view class="location-icon-wrapper">
-        <view class="location-dot"></view>
-      </view>
-      <view class="location-info">
-        <text class="location-label">当前位置</text>
-        <text class="location-name">{{location.name || '未知位置'}}</text>
+    <view class="merchant-quick-actions">
+      <view class="quick-action-btn" bindtap="goToMerchantDetail">
+        <text class="action-text">详情</text>
       </view>
     </view>
-    
-    <!-- 商户列表 -->
-    <scroll-view scroll-y="true" class="merchant-list-scroll">
-      <view class="merchant-section">
-        <view class="merchant-section-title" wx:if="{{inBoundaryMerchants.length > 0}}">
-          <text>附近商户</text>
-        </view>
-        <view class="merchant-list">
-          <view class="merchant-item" 
-                wx:for="{{inBoundaryMerchants}}" 
-                wx:key="id"
-                data-id="{{item.id}}" 
-                bindtap="selectMerchant">
-            <image class="merchant-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
-            <view class="merchant-info">
-              <text class="merchant-name">{{item.name}}</text>
-              <text class="merchant-address">{{item.address}}</text>
-            </view>
-            <view class="merchant-selected" wx:if="{{currentMerchant.id === item.id}}">✓</view>
-          </view>
-        </view>
-        
-        <!-- 附近没有商户时显示全部商户 -->
-        <block wx:if="{{inBoundaryMerchants.length === 0}}">
-          <view class="merchant-section-title" wx:if="{{allMerchants.length > 0}}">
-            <text>全部商户</text>
-          </view>
-          <view class="merchant-list">
-            <view class="merchant-item" 
-                  wx:for="{{allMerchants}}" 
-                  wx:key="id"
-                  data-id="{{item.id}}" 
-                  bindtap="selectMerchant">
-              <image class="merchant-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
-              <view class="merchant-info">
-                <text class="merchant-name">{{item.name}}</text>
-                <text class="merchant-address">{{item.address}}</text>
-                <text class="out-of-range-tag" wx:if="{{!item.inRange}}">不在配送范围</text>
-              </view>
-              <view class="merchant-selected" wx:if="{{currentMerchant.id === item.id}}">✓</view>
-            </view>
-          </view>
-        </block>
-        
-        <!-- 没有任何商户时显示 -->
-        <view class="no-merchant-tip" wx:if="{{allMerchants.length === 0}}">
-          暂无商户数据
+  </view>
+
+  <!-- 商品分类标签 -->
+  <view class="product-categories" wx:if="{{currentMerchant.id}}">
+    <scroll-view scroll-x="{{true}}" class="category-scroll" show-scrollbar="{{false}}">
+      <view class="category-list">
+        <view class="category-tag {{item.active ? 'active' : ''}}" 
+              wx:for="{{productCategories}}" 
+              wx:key="key"
+              data-key="{{item.key}}"
+              bindtap="switchProductCategory">
+          <text class="category-text">{{item.name}}</text>
         </view>
       </view>
     </scroll-view>
   </view>
 
-  <!-- 当前商户详情 -->
-  <view class="current-merchant-detail" wx:if="{{currentMerchant.id}}">
-    <image class="merchant-banner" src="{{currentMerchant.cover || '/assets/images/logo.png'}}" mode="aspectFill"></image>
-    <view class="merchant-detail-info">
-      <text class="merchant-detail-name">{{currentMerchant.name}}</text>
-      <text class="merchant-detail-desc">{{currentMerchant.description || '暂无商户描述'}}</text>
-      <view class="merchant-categories">
-        <text class="merchant-category" wx:for="{{currentMerchant.categories}}" wx:key="id">{{item.name}}</text>
+  <!-- 商品展示区 -->
+  <view class="products-section" wx:if="{{currentMerchant.id}}">
+    <view class="section-header">
+      <view class="section-title">
+        <text class="title-text">{{currentCategoryName}}商品</text>
+        <text class="title-desc">{{products.length}}款商品</text>
       </view>
-    </view>
-    <view class="merchant-actions">
-      <view class="merchant-action-btn" bindtap="goToMerchantDetail">
-        <text>查看商户</text>
+      <view class="section-more" bindtap="goToProductList">
+        <text class="more-text">查看全部</text>
+        <text class="iconfont icon-arrow-right"></text>
       </view>
     </view>
 
-    <!-- 商品分类筛选 -->
-    <view class="product-categories">
-      <scroll-view scroll-x="true" class="category-scroll">
-        <view class="category-list">
-          <view class="category-item {{item.active ? 'active' : ''}}" 
-                wx:for="{{productCategories}}" 
-                wx:key="key"
-                data-key="{{item.key}}"
-                bindtap="switchProductCategory">
-            <text class="category-name">{{item.name}}</text>
-          </view>
-        </view>
-      </scroll-view>
+    <!-- 商品网格 -->
+    <view class="products-grid" wx:if="{{products.length > 0}}">
+      <product-card 
+        wx:for="{{products}}" 
+        wx:key="id"
+        product="{{item}}"
+        mode="grid"
+        show-merchant="{{false}}"
+        bind:tap="onProductTap"
+        bind:favorite="onProductFavorite"
+        bind:buy="onProductBuy">
+      </product-card>
     </view>
 
-    <!-- 商品列表 -->
-    <view class="products-section">
-      <view class="products-header">
-        <text class="products-title">商品列表</text>
-        <view class="view-all" bindtap="goToProductList">
-          <text>查看全部</text>
-          <text class="arrow">></text>
-        </view>
-      </view>
+    <!-- 商品加载状态 -->
+    <view class="loading-state" wx:if="{{loadingProducts}}">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">加载中...</text>
+    </view>
 
-      <!-- 使用商品卡片组件展示商品网格 -->
-      <view class="products-grid" wx:if="{{products.length > 0}}">
+    <!-- 商品为空状态 -->
+    <view class="empty-state" wx:if="{{!loadingProducts && products.length === 0}}">
+      <view class="empty-icon">
+        <text class="iconfont icon-empty"></text>
+      </view>
+      <text class="empty-text">暂无{{currentCategoryName}}商品</text>
+      <view class="empty-action" bindtap="switchProductCategory" data-key="all">
+        <text class="action-text">查看全部商品</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 发现更多区域 -->
+  <view class="discover-section" wx:if="{{!currentMerchant.id}}">
+    <view class="section-header">
+      <view class="section-title">
+        <text class="title-text">发现更多</text>
+        <text class="title-desc">热门商品推荐</text>
+      </view>
+    </view>
+    
+    <!-- 热门商品展示 -->
+    <view class="hot-products" wx:if="{{hotProducts.length > 0}}">
+      <view class="products-grid">
         <product-card 
-          wx:for="{{products}}" 
+          wx:for="{{hotProducts}}" 
           wx:key="id"
           product="{{item}}"
           mode="grid"
-          show-merchant="{{false}}"
+          show-merchant="{{true}}"
           bind:tap="onProductTap"
           bind:favorite="onProductFavorite"
           bind:buy="onProductBuy">
         </product-card>
       </view>
-
-      <!-- 商品加载中 -->
-      <view class="products-loading" wx:if="{{loadingProducts}}">
-        <view class="loading-spinner"></view>
-        <text class="loading-text">加载中...</text>
-      </view>
-
-      <!-- 暂无商品 -->
-      <view class="no-products" wx:if="{{!loadingProducts && products.length === 0}}">
-        <image class="no-products-icon" src="/assets/images/logo.png" mode="aspectFit"></image>
-        <text class="no-products-text">该商户暂无{{currentCategoryName}}商品</text>
-      </view>
-
-      <!-- 加载更多提示 -->
-      <view class="load-more-tip" wx:if="{{products.length > 0 && !loadingProducts}}">
-        <text wx:if="{{hasMoreProducts}}">上拉加载更多商品</text>
-        <text wx:else>已显示全部商品</text>
-      </view>
     </view>
   </view>
 
-  <!-- 附近商户显示 -->
-  <view class="nearby-merchants" wx:if="{{hasNearbyMerchant && !currentMerchant.id}}">
-    <view class="nearby-title">附近可为您提供服务的商户</view>
-    <view class="merchant-list">
-      <view class="merchant-item" 
-            wx:for="{{inBoundaryMerchants}}" 
-            wx:key="id"
-            data-id="{{item.id}}" 
-            bindtap="selectMerchant">
-        <image src="{{item.logo || '/assets/images/logo.png'}}" class="merchant-logo"></image>
-        <view class="merchant-info">
-          <text class="merchant-name">{{item.name}}</text>
-          <text class="merchant-address">{{item.address}}</text>
+  <!-- 商户选择面板 -->
+  <view class="merchant-panel-mask" wx:if="{{showMerchantPanel}}" bindtap="closeMerchantPanel"></view>
+  <view class="merchant-panel {{showMerchantPanel ? 'show' : ''}}">
+    <view class="panel-header">
+      <text class="panel-title">{{currentMerchant.id ? '切换商户' : '选择商户'}}</text>
+      <view class="panel-close" bindtap="closeMerchantPanel">
+        <text class="iconfont icon-close"></text>
+      </view>
+    </view>
+    
+    <!-- 当前位置选项 -->
+    <view class="location-option" bindtap="selectCurrentLocation" wx:if="{{currentMerchant.id}}">
+      <view class="option-icon">
+        <text class="iconfont icon-location-current"></text>
+      </view>
+      <view class="option-info">
+        <text class="option-title">当前位置</text>
+        <text class="option-desc">浏览附近所有商户</text>
+      </view>
+    </view>
+    
+    <!-- 商户列表 -->
+    <scroll-view scroll-y="true" class="merchant-panel-list">
+      <!-- 附近商户 -->
+      <view class="merchant-group" wx:if="{{inBoundaryMerchants.length > 0}}">
+        <view class="group-title">附近商户</view>
+        <view class="merchant-item" 
+              wx:for="{{inBoundaryMerchants}}" 
+              wx:key="id"
+              data-merchant="{{item}}"
+              bindtap="selectMerchant">
+          <image class="item-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+          <view class="item-info">
+            <text class="item-name">{{item.name}}</text>
+            <text class="item-address">{{item.address}}</text>
+            <view class="item-meta">
+              <text class="item-distance" wx:if="{{item.distance}}">{{item.distance}}</text>
+              <text class="item-status {{item.is_open ? 'open' : 'closed'}}">
+                {{item.is_open ? '营业中' : '休息中'}}
+              </text>
+            </view>
+          </view>
+          <view class="item-selected" wx:if="{{currentMerchant.id === item.id}}">
+            <text class="iconfont icon-check"></text>
+          </view>
         </view>
       </view>
-    </view>
-  </view>
-
-  <!-- 不在服务范围提示 -->
-  <view class="no-service-tip" wx:if="{{!hasNearbyMerchant && location && !loading && !currentMerchant.id}}">
-    <icon type="info" size="20" color="#999"></icon>
-    <text>您当前位置不在任何商户的服务范围内</text>
+      
+      <!-- 全部商户 -->
+      <view class="merchant-group" wx:if="{{allMerchants.length > inBoundaryMerchants.length}}">
+        <view class="group-title">全部商户</view>
+        <view class="merchant-item" 
+              wx:for="{{allMerchants}}" 
+              wx:key="id"
+              wx:if="{{!item.inRange}}"
+              data-merchant="{{item}}"
+              bindtap="selectMerchant">
+          <image class="item-logo" src="{{item.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+          <view class="item-info">
+            <text class="item-name">{{item.name}}</text>
+            <text class="item-address">{{item.address}}</text>
+            <view class="item-meta">
+              <text class="item-distance" wx:if="{{item.distance}}">{{item.distance}}</text>
+              <text class="item-status {{item.is_open ? 'open' : 'closed'}}">
+                {{item.is_open ? '营业中' : '休息中'}}
+              </text>
+              <text class="out-of-range">不在配送范围</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
   </view>
 
   <!-- 主加载状态 -->
-  <view class="loading-container" wx:if="{{loading}}">
-    <view class="loading">
+  <view class="page-loading" wx:if="{{loading}}">
+    <view class="loading-container">
       <view class="loading-spinner"></view>
-      <text>加载中...</text>
+      <text class="loading-text">加载中...</text>
     </view>
   </view>
+
 </view>
