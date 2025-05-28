@@ -1,4 +1,4 @@
-/* pages/category/index.wxss - 完善的分类页面样式 */
+/* pages/category/index.wxss - 完整的分类页面样式 */
 
 .container {
   display: flex;
@@ -15,6 +15,9 @@
   position: sticky;
   top: 0;
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
 }
 
 .search-bar {
@@ -24,7 +27,7 @@
   background-color: #f5f5f5;
   border-radius: 35rpx;
   padding: 0 30rpx;
-  margin-bottom: 20rpx;
+  flex: 1;
 }
 
 .search-input {
@@ -36,6 +39,7 @@
 
 .search-input::placeholder {
   color: #999;
+  font-size: 26rpx;
 }
 
 .clear-search {
@@ -52,6 +56,7 @@
   background-color: #f5f5f5;
   border-radius: 6rpx;
   padding: 4rpx;
+  min-width: 140rpx;
 }
 
 .mode-item {
@@ -63,12 +68,90 @@
   color: #666;
   border-radius: 4rpx;
   transition: all 0.3s;
+  min-width: 60rpx;
 }
 
 .mode-item.active {
   background-color: #FF4D4F;
   color: #fff;
   font-weight: bold;
+}
+
+/* ========== 商户模式状态栏样式 ========== */
+.merchant-mode-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  background: linear-gradient(135deg, #FF4D4F 0%, #FF7875 100%);
+  color: #fff;
+  position: relative;
+  animation: slideDown 0.3s ease-out;
+}
+
+.merchant-mode-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10rpx);
+}
+
+.merchant-info {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.merchant-avatar {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 30rpx;
+  margin-right: 20rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.3);
+}
+
+.merchant-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.merchant-name {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 4rpx;
+}
+
+.merchant-tip {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.back-to-global {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 20rpx;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20rpx;
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s;
+}
+
+.back-to-global:active {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(0.95);
+}
+
+.back-text {
+  font-size: 24rpx;
+  color: #fff;
+  margin-right: 6rpx;
 }
 
 /* ========== 筛选栏 ========== */
@@ -90,9 +173,12 @@
 }
 
 .category-count {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: #999;
-  margin-left: 10rpx;
+  margin-left: 8rpx;
+  background: rgba(153, 153, 153, 0.1);
+  padding: 2rpx 8rpx;
+  border-radius: 10rpx;
   font-weight: normal;
 }
 
@@ -102,6 +188,12 @@
   padding: 10rpx 20rpx;
   background-color: #f5f5f5;
   border-radius: 20rpx;
+  transition: all 0.3s;
+}
+
+.sort-btn:active {
+  background-color: #eaeaea;
+  transform: scale(0.95);
 }
 
 .sort-text {
@@ -133,6 +225,11 @@
   padding: 20rpx 10rpx;
   position: relative;
   border-bottom: 1rpx solid #eee;
+  transition: all 0.3s;
+}
+
+.sidebar-item:active {
+  background-color: #eaeaea;
 }
 
 .sidebar-item.active {
@@ -175,6 +272,26 @@
   margin-top: 4rpx;
 }
 
+/* 商户模式下分类侧边栏的样式 */
+.merchant-mode-bar ~ .content-container .category-sidebar {
+  background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+}
+
+.merchant-mode-bar ~ .content-container .sidebar-item.active {
+  background: linear-gradient(135deg, #FF4D4F 0%, #FF7875 100%);
+  color: #fff;
+  box-shadow: 0 2rpx 10rpx rgba(255, 77, 79, 0.2);
+}
+
+.merchant-mode-bar ~ .content-container .sidebar-item.active .category-name {
+  color: #fff;
+}
+
+.merchant-mode-bar ~ .content-container .sidebar-item.active .category-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 /* ========== 右侧内容列表 ========== */
 .content-list {
   flex: 1;
@@ -197,6 +314,10 @@
 
 .merchant-item:active {
   background-color: #f9f9f9;
+}
+
+.merchant-item:last-child {
+  border-bottom: none;
 }
 
 .merchant-logo {
@@ -322,6 +443,7 @@
   display: flex;
   flex-wrap: wrap;
   padding: 20rpx 10rpx;
+  animation: fadeIn 0.4s ease-out;
 }
 
 .product-item {
@@ -336,6 +458,16 @@
 
 .product-item:active {
   transform: scale(0.98);
+}
+
+/* 商户模式下商品卡片优化 */
+.merchant-mode-bar ~ .content-container .product-item {
+  border: 1rpx solid rgba(255, 77, 79, 0.1);
+}
+
+.merchant-mode-bar ~ .content-container .product-item:hover {
+  border-color: rgba(255, 77, 79, 0.3);
+  box-shadow: 0 4rpx 15rpx rgba(255, 77, 79, 0.1);
 }
 
 .product-image-wrapper {
@@ -548,14 +680,17 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40rpx 0;
+  padding: 60rpx 0;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  margin: 20rpx;
+  border-radius: 12rpx;
 }
 
 .loading-spinner {
   width: 40rpx;
   height: 40rpx;
-  border: 2rpx solid #f3f3f3;
-  border-top: 2rpx solid #FF4D4F;
+  border: 3rpx solid #f3f3f3;
+  border-top: 3rpx solid #FF4D4F;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-right: 15rpx;
@@ -563,7 +698,8 @@
 
 .loading-text {
   font-size: 26rpx;
-  color: #999;
+  color: #666;
+  font-weight: 500;
 }
 
 @keyframes spin {
@@ -591,28 +727,42 @@
   align-items: center;
   justify-content: center;
   padding: 100rpx 30rpx;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  margin: 20rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
 }
 
 .empty-icon {
   width: 160rpx;
   height: 160rpx;
   margin-bottom: 30rpx;
-  opacity: 0.3;
+  opacity: 0.4;
+  filter: grayscale(20%);
 }
 
 .empty-text {
   font-size: 28rpx;
-  color: #999;
+  color: #666;
   text-align: center;
   margin-bottom: 30rpx;
+  line-height: 1.5;
+  max-width: 400rpx;
 }
 
 .empty-action {
   padding: 15rpx 30rpx;
-  background-color: #FF4D4F;
+  background: linear-gradient(135deg, #FF4D4F 0%, #FF7875 100%);
   color: #fff;
   font-size: 26rpx;
   border-radius: 25rpx;
+  box-shadow: 0 4rpx 15rpx rgba(255, 77, 79, 0.3);
+  transition: all 0.3s;
+}
+
+.empty-action:active {
+  transform: scale(0.95);
+  box-shadow: 0 2rpx 10rpx rgba(255, 77, 79, 0.4);
 }
 
 /* ========== 加载更多提示 ========== */
@@ -621,6 +771,29 @@
   padding: 30rpx 0;
   font-size: 26rpx;
   color: #999;
+}
+
+/* ========== 动画效果 ========== */
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ========== 响应式设计 ========== */
@@ -633,6 +806,29 @@
     width: calc(50% - 5rpx);
     margin: 2.5rpx;
   }
+  
+  .merchant-mode-bar {
+    padding: 15rpx 20rpx;
+  }
+  
+  .merchant-avatar {
+    width: 50rpx;
+    height: 50rpx;
+    border-radius: 25rpx;
+    margin-right: 15rpx;
+  }
+  
+  .merchant-name {
+    font-size: 26rpx;
+  }
+  
+  .merchant-tip {
+    font-size: 20rpx;
+  }
+  
+  .back-text {
+    font-size: 22rpx;
+  }
 }
 
 @media (min-width: 1000rpx) {
@@ -642,5 +838,90 @@
   
   .product-item {
     width: calc(33.333% - 10rpx);
+  }
+}
+
+/* ========== 过渡动画优化 ========== */
+.category-sidebar,
+.content-list,
+.product-item,
+.empty-state {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========== 商户模式提示增强 ========== */
+.merchant-mode-indicator {
+  position: absolute;
+  top: 10rpx;
+  right: 10rpx;
+  background: linear-gradient(135deg, #FF4D4F 0%, #FF7875 100%);
+  color: #fff;
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 10rpx;
+  z-index: 10;
+}
+
+/* ========== 深色主题适配（预留） ========== */
+@media (prefers-color-scheme: dark) {
+  .merchant-mode-bar {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+  
+  .empty-state {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+  
+  .empty-text {
+    color: #ccc;
+  }
+  
+  .container {
+    background-color: #1a1a1a;
+  }
+  
+  .search-header {
+    background-color: #2d2d2d;
+    border-bottom-color: #444;
+  }
+  
+  .search-bar {
+    background-color: #333;
+  }
+  
+  .search-input {
+    color: #fff;
+  }
+  
+  .category-sidebar {
+    background-color: #2d2d2d;
+  }
+  
+  .sidebar-item {
+    border-bottom-color: #444;
+  }
+  
+  .sidebar-item.active {
+    background-color: #444;
+  }
+  
+  .content-list {
+    background-color: #1a1a1a;
+  }
+  
+  .product-item {
+    background-color: #2d2d2d;
+  }
+  
+  .product-name {
+    color: #fff;
+  }
+  
+  .loading-container {
+    background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+  }
+  
+  .loading-text {
+    color: #ccc;
   }
 }

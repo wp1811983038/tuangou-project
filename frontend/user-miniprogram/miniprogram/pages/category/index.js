@@ -1,10 +1,10 @@
-// pages/category/index.js - 完善的分类页面
+// pages/category/index.js - 完善的分类页面（支持商户分类）
 import { getLocation } from '../../utils/location';
 import { 
-  getCategories,
+  getCategoriesForCurrentContext,
+  getProductsForCurrentContext,
   getMerchantsByCategory,
-  getProductsByCategory,
-  getCategoryStats
+  getProductsByCategory
 } from '../../services/category';
 
 Page({
@@ -13,11 +13,15 @@ Page({
     categories: [],                    // 所有分类
     currentCategory: null,             // 当前选中分类
     
+    // 当前商户信息
+    currentMerchant: null,             // 当前选中商户
+    isMerchantMode: false,             // 是否为商户模式
+    
     // 位置信息
     location: null,                    // 用户位置
     
     // 显示模式：'merchants' | 'products'
-    displayMode: 'merchants',
+    displayMode: 'products',           // 默认显示商品（商户模式下只显示商品）
     
     // 商户数据
     merchants: [],                     // 商户列表
@@ -36,11 +40,11 @@ Page({
     sortBy: 'default',                 // 排序方式
     sortOptions: [                     // 排序选项
       { value: 'default', label: '默认排序' },
-      { value: 'distance', label: '距离最近' },
-      { value: 'rating', label: '评分最高' },
       { value: 'sales', label: '销量最高' },
       { value: 'price_asc', label: '价格从低到高' },
-      { value: 'price_desc', label: '价格从高到低' }
+      { value: 'price_desc', label: '价格从高到低' },
+      { value: 'rating', label: '评分最高' },
+      { value: 'created_at', label: '最新上架' }
     ],
     
     // UI状态
@@ -53,7 +57,7 @@ Page({
   },
 
   onLoad: function(options) {
-    console.log('分类页面加载，参数:', options);
+    console.log('🏷️ 分类页面加载，参数:', options);
     
     // 获取传入的分类ID
     if (options.category_id) {
@@ -62,13 +66,65 @@ Page({
       });
     }
     
+    // 检测当前商户状态
+    this.checkCurrentMerchant();
+    
     // 初始化页面
     this.initPage();
   },
 
   onShow: function() {
-    // 页面显示时检查位置权限
+    // 页面显示时重新检查商户状态（可能从其他页面返回）
+    this.checkCurrentMerchant();
+    
+    // 检查位置权限
     this.checkLocationPermission();
+  },
+
+  // 检测当前选中商户
+  checkCurrentMerchant() {
+    try {
+      const currentMerchant = wx.getStorageSync('currentMerchant');
+      const isMerchantMode = !!(currentMerchant && currentMerchant.id);
+      
+      console.log('🏪 当前商户状态:', {
+        merchant: currentMerchant?.name || '未选择',
+        merchantId: currentMerchant?.id || null,
+        isMerchantMode
+      });
+      
+      this.setData({
+        currentMerchant: currentMerchant || null,
+        isMerchantMode
+      });
+      
+      // 商户模式下只显示商品
+      if (isMerchantMode) {
+        this.setData({ displayMode: 'products' });
+      }
+      
+      // 更新页面标题
+      this.updatePageTitle();
+      
+    } catch (error) {
+      console.error('检测商户状态失败', error);
+      this.setData({
+        currentMerchant: null,
+        isMerchantMode: false
+      });
+    }
+  },
+
+  // 更新页面标题
+  updatePageTitle() {
+    const { currentMerchant, isMerchantMode } = this.data;
+    
+    let title = '商品分类';
+    if (isMerchantMode && currentMerchant) {
+      title = `${currentMerchant.name} - 分类`;
+    }
+    
+    wx.setNavigationBarTitle({ title });
   },
 
   // 初始化页面
@@ -98,7 +154,7 @@ Page({
     try {
       const location = await getLocation();
       this.setData({ location });
-      console.log('获取到用户位置:', location);
+      console.log('📍 获取到用户位置:', location);
     } catch (error) {
       console.error('获取位置失败', error);
       // 位置获取失败不阻塞页面加载
@@ -128,7 +184,12 @@ Page({
   // 加载分类数据
   async loadCategories() {
     try {
-      const categories = await getCategories({ is_active: true });
+      const { currentMerchant } = this.data;
+      
+      console.log('🏷️ 开始加载分类数据，商户模式:', !!currentMerchant?.id);
+      
+      // 使用上下文感知的分类加载
+      const categories = await getCategoriesForCurrentContext(currentMerchant);
       
       // 添加"全部"分类
       const allCategories = [
@@ -158,6 +219,8 @@ Page({
         currentCategory
       });
       
+      console.log(`✅ 加载了 ${categories.length} 个分类`);
+      
       // 加载当前分类的数据
       await this.loadCategoryData(currentCategory.id, true);
       
@@ -182,6 +245,8 @@ Page({
     const category = categories.find(item => item.id === parseInt(id));
     if (!category) return;
     
+    console.log(`🏷️ 切换到分类: ${category.name}`);
+    
     this.setData({
       currentCategory: category,
       merchants: [],
@@ -198,12 +263,20 @@ Page({
 
   // 加载分类数据（商户或商品）
   async loadCategoryData(categoryId, reset = false) {
-    const { displayMode } = this.data;
+    const { displayMode, isMerchantMode } = this.data;
     
-    if (displayMode === 'merchants') {
-      await this.loadMerchants(categoryId, reset);
-    } else {
+    console.log(`📦 加载分类数据: categoryId=${categoryId}, mode=${displayMode}, merchantMode=${isMerchantMode}`);
+    
+    // 商户模式下只加载商品
+    if (isMerchantMode) {
       await this.loadProducts(categoryId, reset);
+    } else {
+      // 非商户模式下根据显示模式加载
+      if (displayMode === 'merchants') {
+        await this.loadMerchants(categoryId, reset);
+      } else {
+        await this.loadProducts(categoryId, reset);
+      }
     }
   },
 
@@ -248,10 +321,7 @@ Page({
       
       // 添加排序参数
       if (sortBy !== 'default') {
-        if (sortBy === 'distance') {
-          params.sort_by = 'distance';
-          params.sort_order = 'asc';
-        } else if (sortBy === 'rating') {
+        if (sortBy === 'rating') {
           params.sort_by = 'rating';
           params.sort_order = 'desc';
         }
@@ -274,11 +344,6 @@ Page({
             merchant.distanceValue = distance; // 用于排序
           }
         });
-        
-        // 按距离排序
-        if (sortBy === 'distance') {
-          result.items.sort((a, b) => (a.distanceValue || 999999) - (b.distanceValue || 999999));
-        }
       }
       
       this.setData({
@@ -309,7 +374,8 @@ Page({
       productsPage, 
       pageSize,
       searchKeyword,
-      sortBy
+      sortBy,
+      currentMerchant
     } = this.data;
     
     if (productsLoading || (!productsHasMore && !reset)) return;
@@ -344,10 +410,19 @@ Page({
         } else if (sortBy === 'price_desc') {
           params.sort_by = 'current_price';
           params.sort_order = 'desc';
+        } else if (sortBy === 'rating') {
+          params.sort_by = 'rating';
+          params.sort_order = 'desc';
+        } else if (sortBy === 'created_at') {
+          params.sort_by = 'created_at';
+          params.sort_order = 'desc';
         }
       }
       
-      const result = await getProductsByCategory(params);
+      console.log('🛍️ 加载商品参数:', params);
+      
+      // 使用上下文感知的商品加载
+      const result = await getProductsForCurrentContext(params, currentMerchant);
       
       this.setData({
         products: reset ? result.items : [...this.data.products, ...result.items],
@@ -355,6 +430,8 @@ Page({
         productsHasMore: result.items.length === pageSize,
         productsLoading: false
       });
+      
+      console.log(`✅ 加载商品完成: ${result.items.length} 个商品`);
       
     } catch (error) {
       console.error('加载商品失败', error);
@@ -372,9 +449,20 @@ Page({
   // 切换显示模式
   switchDisplayMode(e) {
     const { mode } = e.currentTarget.dataset;
-    const { displayMode, currentCategory } = this.data;
+    const { displayMode, currentCategory, isMerchantMode } = this.data;
+    
+    // 商户模式下不允许切换到商户视图
+    if (isMerchantMode && mode === 'merchants') {
+      wx.showToast({
+        title: '当前为商户模式，只能查看商品',
+        icon: 'none'
+      });
+      return;
+    }
     
     if (displayMode === mode) return;
+    
+    console.log(`🔄 切换显示模式: ${displayMode} -> ${mode}`);
     
     this.setData({
       displayMode: mode,
@@ -438,6 +526,8 @@ Page({
       return;
     }
     
+    console.log(`📊 切换排序: ${sortBy} -> ${value}`);
+    
     this.setData({
       sortBy: value,
       showSortPanel: false
@@ -490,6 +580,9 @@ Page({
     this.setData({ refreshing: true });
     
     try {
+      // 重新检测商户状态
+      this.checkCurrentMerchant();
+      
       const { currentCategory } = this.data;
       if (currentCategory) {
         await this.loadCategoryData(currentCategory.id, true);
@@ -511,6 +604,48 @@ Page({
   get currentCategoryName() {
     const { currentCategory } = this.data;
     return currentCategory ? currentCategory.name : '全部';
+  },
+
+  // 返回全局分类模式
+  backToGlobal() {
+    console.log('🌍 返回全局分类模式');
+    
+    wx.showModal({
+      title: '提示',
+      content: '是否退出商户模式，查看全部商户分类？',
+      confirmText: '确定',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          // 清除当前商户
+          wx.removeStorageSync('currentMerchant');
+          
+          // 重置页面状态
+          this.setData({
+            currentMerchant: null,
+            isMerchantMode: false,
+            displayMode: 'products', // 重置为商品模式
+            categories: [],
+            currentCategory: null,
+            products: [],
+            merchants: [],
+            searchKeyword: '',
+            sortBy: 'default'
+          });
+          
+          // 更新页面标题
+          wx.setNavigationBarTitle({ title: '商品分类' });
+          
+          // 重新初始化页面
+          this.initPage();
+          
+          wx.showToast({
+            title: '已切换到全局分类',
+            icon: 'success'
+          });
+        }
+      }
+    });
   },
 
   // 获取当前排序名称

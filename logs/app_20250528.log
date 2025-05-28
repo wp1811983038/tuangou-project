@@ -1,0 +1,108 @@
+2025-05-28 09:57:10,306 - INFO - root - 日志系统已配置
+2025-05-28 09:57:10,334 - INFO - root - 数据库连接成功
+2025-05-28 09:57:10,335 - INFO - root - 应用启动成功，调试模式: True
+2025-05-28 09:57:10,549 - INFO - app.db.init_db - 数据库初始化完成
+2025-05-28 09:58:26,142 - INFO - root - 应用已停止
+2025-05-28 09:58:29,046 - INFO - root - 日志系统已配置
+2025-05-28 09:58:29,074 - INFO - root - 数据库连接成功
+2025-05-28 09:58:29,075 - INFO - root - 应用启动成功，调试模式: True
+2025-05-28 09:58:29,299 - INFO - app.db.init_db - 数据库初始化完成
+2025-05-28 10:05:18,392 - INFO - root - 应用已停止
+2025-05-28 10:05:21,679 - INFO - root - 日志系统已配置
+2025-05-28 10:05:21,707 - INFO - root - 数据库连接成功
+2025-05-28 10:05:21,708 - INFO - root - 应用启动成功，调试模式: True
+2025-05-28 10:05:21,876 - INFO - app.db.init_db - 数据库初始化完成
+2025-05-28 10:05:53,229 - INFO - root - 开始处理请求: GET /api/v1/merchants/categories/all - IP: 10.255.229.157
+2025-05-28 10:05:53,236 - INFO - root - 请求处理完成: GET /api/v1/merchants/categories/all - 状态: 200 - 耗时: 0.0070秒
+2025-05-28 10:06:20,987 - INFO - root - 开始处理请求: POST /api/v1/locations/address - IP: 10.255.229.157
+2025-05-28 10:06:20,994 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): apis.map.qq.com:443
+2025-05-28 10:06:21,095 - DEBUG - urllib3.connectionpool - https://apis.map.qq.com:443 "GET /ws/geocoder/v1/?key=WZPBZ-KJVCZ-LPVXE-ZUHQS-SI6U2-M6BUH&location=34.79977%2C113.66072 HTTP/1.1" 200 190
+2025-05-28 10:06:21,097 - INFO - root - 请求处理完成: POST /api/v1/locations/address - 状态: 500 - 耗时: 0.1099秒
+2025-05-28 10:06:21,188 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:06:21,189 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:21,194 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:06:21,218 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0246秒
+2025-05-28 10:06:22,278 - INFO - root - 开始处理请求: POST /api/v1/locations/address - IP: 10.255.229.157
+2025-05-28 10:06:22,284 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): apis.map.qq.com:443
+2025-05-28 10:06:22,380 - DEBUG - urllib3.connectionpool - https://apis.map.qq.com:443 "GET /ws/geocoder/v1/?key=WZPBZ-KJVCZ-LPVXE-ZUHQS-SI6U2-M6BUH&location=34.79977%2C113.66072 HTTP/1.1" 200 190
+2025-05-28 10:06:22,382 - INFO - root - 请求处理完成: POST /api/v1/locations/address - 状态: 500 - 耗时: 0.1045秒
+2025-05-28 10:06:38,739 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:06:38,740 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:38,753 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:38,754 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:38,755 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:06:38,772 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:38,774 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0190秒
+2025-05-28 10:06:38,775 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0030秒
+2025-05-28 10:06:39,534 - INFO - root - 开始处理请求: POST /api/v1/locations/address - IP: 10.255.229.157
+2025-05-28 10:06:39,536 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): apis.map.qq.com:443
+2025-05-28 10:06:39,624 - DEBUG - urllib3.connectionpool - https://apis.map.qq.com:443 "GET /ws/geocoder/v1/?key=WZPBZ-KJVCZ-LPVXE-ZUHQS-SI6U2-M6BUH&location=34.79977%2C113.66072 HTTP/1.1" 200 190
+2025-05-28 10:06:39,626 - INFO - root - 请求处理完成: POST /api/v1/locations/address - 状态: 500 - 耗时: 0.0928秒
+2025-05-28 10:06:39,691 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:06:39,692 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:39,697 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:06:39,718 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0209秒
+2025-05-28 10:06:43,575 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:43,577 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0016秒
+2025-05-28 10:06:43,582 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:43,584 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0021秒
+2025-05-28 10:06:50,793 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:50,794 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:50,801 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:50,804 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0030秒
+2025-05-28 10:06:52,131 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:52,132 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:52,137 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:52,139 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0020秒
+2025-05-28 10:06:52,885 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:52,886 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:52,890 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:52,893 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0030秒
+2025-05-28 10:06:55,644 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:55,645 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:55,650 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:55,652 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0020秒
+2025-05-28 10:06:57,203 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:06:57,204 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:06:57,213 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:06:57,218 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0050秒
+2025-05-28 10:07:47,166 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:07:47,167 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:07:47,174 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:07:47,175 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:07:47,187 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:07:47,206 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:07:47,207 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0199秒
+2025-05-28 10:07:47,208 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0020秒
+2025-05-28 10:07:48,078 - INFO - root - 开始处理请求: POST /api/v1/locations/address - IP: 10.255.229.157
+2025-05-28 10:07:48,082 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): apis.map.qq.com:443
+2025-05-28 10:07:48,179 - DEBUG - urllib3.connectionpool - https://apis.map.qq.com:443 "GET /ws/geocoder/v1/?key=WZPBZ-KJVCZ-LPVXE-ZUHQS-SI6U2-M6BUH&location=34.79977%2C113.66072 HTTP/1.1" 200 190
+2025-05-28 10:07:48,181 - INFO - root - 请求处理完成: POST /api/v1/locations/address - 状态: 500 - 耗时: 0.1029秒
+2025-05-28 10:07:48,240 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:07:48,242 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0020秒
+2025-05-28 10:07:48,258 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:07:48,273 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0140秒
+2025-05-28 10:07:49,044 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:07:49,045 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:07:49,045 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:07:49,046 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0010秒
+2025-05-28 10:07:49,051 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:07:49,052 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:07:49,066 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0140秒
+2025-05-28 10:07:49,067 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0170秒
+2025-05-28 10:07:50,644 - INFO - root - 开始处理请求: POST /api/v1/locations/address - IP: 10.255.229.157
+2025-05-28 10:07:50,650 - DEBUG - urllib3.connectionpool - Starting new HTTPS connection (1): apis.map.qq.com:443
+2025-05-28 10:07:50,736 - DEBUG - urllib3.connectionpool - https://apis.map.qq.com:443 "GET /ws/geocoder/v1/?key=WZPBZ-KJVCZ-LPVXE-ZUHQS-SI6U2-M6BUH&location=34.79977%2C113.66072 HTTP/1.1" 200 190
+2025-05-28 10:07:50,739 - INFO - root - 请求处理完成: POST /api/v1/locations/address - 状态: 500 - 耗时: 0.0945秒
+2025-05-28 10:07:50,840 - INFO - root - 开始处理请求: GET /api/v1/merchants - IP: 10.255.229.157
+2025-05-28 10:07:50,842 - INFO - root - 请求处理完成: GET /api/v1/merchants - 状态: 307 - 耗时: 0.0020秒
+2025-05-28 10:07:50,857 - INFO - root - 开始处理请求: GET /api/v1/merchants/ - IP: 10.255.229.157
+2025-05-28 10:07:50,882 - INFO - root - 请求处理完成: GET /api/v1/merchants/ - 状态: 200 - 耗时: 0.0249秒
+2025-05-28 10:07:56,401 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:07:56,403 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0020秒
+2025-05-28 10:07:56,416 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:07:56,417 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0010秒
+2025-05-28 10:07:57,985 - INFO - root - 开始处理请求: GET /api/v1/products - IP: 10.255.229.157
+2025-05-28 10:07:57,986 - INFO - root - 请求处理完成: GET /api/v1/products - 状态: 307 - 耗时: 0.0020秒
+2025-05-28 10:07:58,004 - INFO - root - 开始处理请求: GET /api/v1/products/ - IP: 10.255.229.157
+2025-05-28 10:07:58,006 - INFO - root - 请求处理完成: GET /api/v1/products/ - 状态: 401 - 耗时: 0.0020秒

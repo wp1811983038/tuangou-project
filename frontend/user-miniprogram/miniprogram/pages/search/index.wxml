@@ -1,2 +1,335 @@
-<!--pages/search/index.wxml-->
-<text>pages/search/index.wxml</text>
+<!--pages/search/index.wxml - 增强的搜索页面-->
+<view class="container">
+  <!-- 搜索栏 -->
+  <view class="search-header">
+    <view class="search-bar">
+      <icon type="search" size="16" color="#999"></icon>
+      <input class="search-input" 
+             placeholder="搜索商户、商品、分类" 
+             value="{{searchKeyword}}"
+             bindinput="onSearchInput"
+             bindconfirm="onSearchConfirm"
+             focus="{{!hasSearched}}"
+             confirm-type="search" />
+      <view class="clear-search" wx:if="{{searchKeyword}}" bindtap="clearSearch">
+        <icon type="clear" size="14" color="#999"></icon>
+      </view>
+    </view>
+    
+    <!-- 排序按钮 -->
+    <view class="sort-btn" wx:if="{{hasSearched}}" bindtap="showSortPanel">
+      <text class="sort-text">排序</text>
+      <icon type="download" size="12" color="#666"></icon>
+    </view>
+  </view>
+
+  <!-- 搜索建议 -->
+  <view class="suggestions-panel" wx:if="{{showSuggestions && suggestions.length > 0}}">
+    <view class="suggestion-item" 
+          wx:for="{{suggestions}}" 
+          wx:key="*this"
+          data-keyword="{{item}}"
+          bindtap="selectSuggestion">
+      <icon type="search" size="14" color="#999"></icon>
+      <text class="suggestion-text">{{item}}</text>
+    </view>
+  </view>
+
+  <!-- 搜索结果区域 -->
+  <view class="search-results" wx:if="{{hasSearched}}">
+    <!-- 结果标签页 -->
+    <view class="search-tabs">
+      <view class="search-tab {{searchType === item.key ? 'active' : ''}}" 
+            wx:for="{{searchTabs}}" 
+            wx:key="key"
+            data-type="{{item.key}}"
+            bindtap="switchSearchTab">
+        <text class="tab-name">{{item.name}}</text>
+        <text class="tab-count" wx:if="{{item.count > 0}}">({{item.count}})</text>
+      </view>
+    </view>
+
+    <!-- 综合结果 -->
+    <scroll-view class="results-container" 
+                 scroll-y="{{true}}" 
+                 wx:if="{{searchType === 'all'}}"
+                 bindscrolltolower="onReachBottom">
+      
+      <!-- 分类结果 -->
+      <view class="result-section" wx:if="{{searchResults.categories.length > 0}}">
+        <view class="section-header">
+          <text class="section-title">相关分类</text>
+        </view>
+        <view class="categories-grid">
+          <view class="category-item" 
+                wx:for="{{searchResults.categories}}" 
+                wx:key="id"
+                data-id="{{item.id}}"
+                data-name="{{item.name}}"
+                bindtap="selectHotCategory">
+            <image class="category-icon" 
+                   src="{{item.icon || '/assets/images/logo.png'}}" 
+                   mode="aspectFit"></image>
+            <text class="category-name">{{item.name}}</text>
+            <text class="category-count">{{item.merchant_count}}家</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 商户结果 -->
+      <view class="result-section" wx:if="{{searchResults.merchants.length > 0}}">
+        <view class="section-header">
+          <text class="section-title">相关商户</text>
+          <view class="view-more" data-type="merchants" bindtap="switchSearchTab">
+            <text>查看更多</text>
+            <icon type="download" size="12" color="#999" style="margin-left: 5rpx; transform: rotate(-90deg);"></icon>
+          </view>
+        </view>
+        <view class="merchants-list">
+          <view class="merchant-item" 
+                wx:for="{{searchResults.merchants.slice(0, 3)}}" 
+                wx:key="id"
+                data-id="{{item.id}}"
+                bindtap="goToMerchant">
+            <image class="merchant-logo" 
+                   src="{{item.logo || '/assets/images/logo.png'}}" 
+                   mode="aspectFill"></image>
+            <view class="merchant-info">
+              <text class="merchant-name">{{item.name}}</text>
+              <view class="merchant-meta">
+                <text class="rating" wx:if="{{item.rating}}">{{item.rating}}分</text>
+                <text class="distance" wx:if="{{item.distance}}">{{item.distance}}</text>
+              </view>
+              <text class="merchant-desc">{{item.description}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 商品结果 -->
+      <view class="result-section" wx:if="{{searchResults.products.length > 0}}">
+        <view class="section-header">
+          <text class="section-title">相关商品</text>
+          <view class="view-more" data-type="products" bindtap="switchSearchTab">
+            <text>查看更多</text>
+            <icon type="download" size="12" color="#999" style="margin-left: 5rpx; transform: rotate(-90deg);"></icon>
+          </view>
+        </view>
+        <view class="products-grid">
+          <view class="product-item" 
+                wx:for="{{searchResults.products.slice(0, 4)}}" 
+                wx:key="id"
+                data-id="{{item.id}}"
+                bindtap="goToProduct">
+            <view class="product-image-wrapper">
+              <image class="product-image" 
+                     src="{{item.thumbnail || '/assets/images/logo.png'}}" 
+                     mode="aspectFill"></image>
+              <view class="product-tags" wx:if="{{item.is_hot || item.is_new}}">
+                <text class="product-tag hot" wx:if="{{item.is_hot}}">热</text>
+                <text class="product-tag new" wx:if="{{item.is_new}}">新</text>
+              </view>
+            </view>
+            <view class="product-info">
+              <text class="product-name">{{item.name}}</text>
+              <view class="product-price">
+                <text class="current-price">¥{{item.current_price}}</text>
+                <text class="original-price" wx:if="{{item.original_price > item.current_price}}">
+                  ¥{{item.original_price}}
+                </text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 商户结果页 -->
+    <scroll-view class="results-container" 
+                 scroll-y="{{true}}" 
+                 wx:if="{{searchType === 'merchants'}}"
+                 bindscrolltolower="onReachBottom">
+      <view class="merchants-list">
+        <view class="merchant-item" 
+              wx:for="{{searchResults.merchants}}" 
+              wx:key="id"
+              data-id="{{item.id}}"
+              bindtap="goToMerchant">
+          <image class="merchant-logo" 
+                 src="{{item.logo || '/assets/images/logo.png'}}" 
+                 mode="aspectFill"></image>
+          <view class="merchant-info">
+            <text class="merchant-name">{{item.name}}</text>
+            <view class="merchant-tags" wx:if="{{item.categories && item.categories.length > 0}}">
+              <text class="merchant-tag" wx:for="{{item.categories}}" wx:key="id" wx:for-item="cat">
+                {{cat.name}}
+              </text>
+            </view>
+            <text class="merchant-desc" wx:if="{{item.description}}">{{item.description}}</text>
+            <view class="merchant-meta">
+              <text class="rating" wx:if="{{item.rating}}">{{item.rating}}分</text>
+              <text class="distance" wx:if="{{item.distance}}">{{item.distance}}</text>
+              <text class="delivery-fee">配送费¥{{item.delivery_fee || '免费'}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 商品结果页 -->
+    <scroll-view class="results-container" 
+                 scroll-y="{{true}}" 
+                 wx:if="{{searchType === 'products'}}"
+                 bindscrolltolower="onReachBottom">
+      <view class="products-grid">
+        <view class="product-item" 
+              wx:for="{{searchResults.products}}" 
+              wx:key="id"
+              data-id="{{item.id}}"
+              bindtap="goToProduct">
+          <view class="product-image-wrapper">
+            <image class="product-image" 
+                   src="{{item.thumbnail || '/assets/images/logo.png'}}" 
+                   mode="aspectFill"></image>
+            <view class="product-tags" wx:if="{{item.is_hot || item.is_new || item.is_recommend}}">
+              <text class="product-tag hot" wx:if="{{item.is_hot}}">热</text>
+              <text class="product-tag new" wx:if="{{item.is_new}}">新</text>
+              <text class="product-tag recommend" wx:if="{{item.is_recommend}}">荐</text>
+            </view>
+            <view class="out-of-stock-mask" wx:if="{{item.stock === 0}}">
+              <text class="out-of-stock-text">缺货</text>
+            </view>
+          </view>
+          <view class="product-info">
+            <text class="product-name">{{item.name}}</text>
+            <text class="merchant-name" wx:if="{{item.merchant_name}}">{{item.merchant_name}}</text>
+            <view class="product-price">
+              <text class="current-price">¥{{item.current_price}}</text>
+              <text class="original-price" wx:if="{{item.original_price > item.current_price}}">
+                ¥{{item.original_price}}
+              </text>
+            </view>
+            <text class="product-sales">已售{{item.sales || 0}}</text>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 分类结果页 -->
+    <scroll-view class="results-container" 
+                 scroll-y="{{true}}" 
+                 wx:if="{{searchType === 'categories'}}">
+      <view class="categories-list">
+        <view class="category-item-large" 
+              wx:for="{{searchResults.categories}}" 
+              wx:key="id"
+              data-id="{{item.id}}"
+              bindtap="goToCategory">
+          <image class="category-icon-large" 
+                 src="{{item.icon || '/assets/images/logo.png'}}" 
+                 mode="aspectFit"></image>
+          <view class="category-info">
+            <text class="category-name-large">{{item.name}}</text>
+            <text class="category-desc" wx:if="{{item.description}}">{{item.description}}</text>
+            <view class="category-stats">
+              <text class="stat-item">{{item.merchant_count}}家商户</text>
+              <text class="stat-item">{{item.product_count}}个商品</text>
+            </view>
+          </view>
+          <view class="category-arrow">
+            <icon type="download" size="12" color="#ccc" style="transform: rotate(-90deg);"></icon>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 搜索无结果 -->
+    <view class="no-results" wx:if="{{!loading && hasSearched && searchResults.merchants.length === 0 && searchResults.products.length === 0 && searchResults.categories.length === 0}}">
+      <image class="no-results-icon" src="/assets/images/logo.png" mode="aspectFit"></image>
+      <text class="no-results-text">没有找到相关结果</text>
+      <text class="no-results-tip">试试其他关键词或浏览热门分类</text>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{loading}}">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">搜索中...</text>
+    </view>
+  </view>
+
+  <!-- 默认内容（未搜索时） -->
+  <view class="default-content" wx:if="{{!hasSearched}}">
+    <!-- 搜索历史 -->
+    <view class="history-section" wx:if="{{searchHistory.length > 0}}">
+      <view class="section-header">
+        <text class="section-title">搜索历史</text>
+        <text class="clear-btn" bindtap="clearSearchHistory">清除</text>
+      </view>
+      <view class="history-tags">
+        <view class="history-tag" 
+              wx:for="{{searchHistory}}" 
+              wx:key="*this"
+              data-keyword="{{item}}"
+              bindtap="selectHotKeyword">
+          {{item}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 热门搜索 -->
+    <view class="hot-section" wx:if="{{hotKeywords.length > 0}}">
+      <view class="section-header">
+        <text class="section-title">热门搜索</text>
+      </view>
+      <view class="hot-tags">
+        <view class="hot-tag" 
+              wx:for="{{hotKeywords}}" 
+              wx:key="*this"
+              data-keyword="{{item}}"
+              bindtap="selectHotKeyword">
+          {{item}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 热门分类 -->
+    <view class="categories-section" wx:if="{{hotCategories.length > 0}}">
+      <view class="section-header">
+        <text class="section-title">热门分类</text>
+      </view>
+      <view class="categories-grid">
+        <view class="category-item" 
+              wx:for="{{hotCategories}}" 
+              wx:key="id"
+              data-id="{{item.id}}"
+              data-name="{{item.name}}"
+              bindtap="selectHotCategory">
+          <image class="category-icon" 
+                 src="{{item.icon || '/assets/images/logo.png'}}" 
+                 mode="aspectFit"></image>
+          <text class="category-name">{{item.name}}</text>
+          <text class="category-count">{{item.merchant_count}}家</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 排序面板 -->
+  <view class="sort-panel-mask" wx:if="{{showSortPanel}}" bindtap="hideSortPanel"></view>
+  <view class="sort-panel {{showSortPanel ? 'show' : ''}}">
+    <view class="sort-panel-header">
+      <text class="sort-panel-title">排序方式</text>
+      <view class="sort-panel-close" bindtap="hideSortPanel">×</view>
+    </view>
+    <view class="sort-options">
+      <view class="sort-option {{sortBy === item.value ? 'active' : ''}}" 
+            wx:for="{{sortOptions}}" 
+            wx:key="value"
+            data-value="{{item.value}}"
+            bindtap="selectSort">
+        <text class="sort-option-text">{{item.label}}</text>
+        <icon type="success" size="16" color="#FF4D4F" wx:if="{{sortBy === item.value}}"></icon>
+      </view>
+    </view>
+  </view>
+</view>
