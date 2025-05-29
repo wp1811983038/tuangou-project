@@ -53,7 +53,7 @@ async def search_merchants(
     }
 
 
-from sqlalchemy import text  # 添加这个导入
+from sqlalchemy import func, text  # 添加这个导入
 
 @router.get("/my", response_model=schemas.merchant.MerchantDetail)
 async def get_my_merchant(
@@ -320,6 +320,85 @@ async def admin_update_merchant(
         merchant_id=merchant_id
     )
 
+
+@router.get("/{merchant_id}/categories", response_model=List[schemas.merchant.Category])
+async def get_merchant_product_categories(
+    merchant_id: int = Path(..., ge=1),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    获取指定商户的商品分类
+    只返回该商户有商品的分类
+    """
+    try:
+        # 查询该商户所有商品涉及的分类
+        from app.models.category import product_categories
+        from app.models.product import Product
+        
+        # 获取商户的所有商品分类，并统计每个分类的商品数量
+        categories_query = db.query(
+            Category.id,
+            Category.name,
+            Category.icon,
+            Category.sort_order,
+            Category.is_active,
+            Category.created_at,
+            Category.updated_at,
+            func.count(Product.id).label('product_count')
+        ).join(
+            product_categories,
+            Category.id == product_categories.c.category_id
+        ).join(
+            Product,
+            product_categories.c.product_id == Product.id
+        ).filter(
+            Product.merchant_id == merchant_id,
+            Product.status == 1,  # 只统计上架商品
+            Category.is_active == True
+        ).group_by(
+            Category.id,
+            Category.name,
+            Category.icon,
+            Category.sort_order,
+            Category.is_active,
+            Category.created_at,
+            Category.updated_at
+        ).order_by(
+            Category.sort_order.asc(),
+            Category.id.asc()
+        )
+        
+        categories = categories_query.all()
+        
+        # 转换为字典格式
+        result = []
+        for category_data in categories:
+            result.append({
+                "id": category_data.id,
+                "name": category_data.name or "",
+                "icon": category_data.icon or "",
+                "sort_order": category_data.sort_order or 0,
+                "is_active": category_data.is_active if category_data.is_active is not None else True,
+                "product_count": category_data.product_count or 0,
+                "merchant_count": 1,  # 当前商户
+                "created_at": category_data.created_at,
+                "updated_at": category_data.updated_at
+            })
+        
+        print(f"商户 {merchant_id} 的商品分类数量: {len(result)}")
+        return result
+        
+    except Exception as e:
+        print(f"获取商户商品分类失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取商户商品分类失败: {str(e)}"
+        )
+
+
+
 @router.put("/{merchant_id}", response_model=schemas.merchant.Merchant, dependencies=[Depends(deps.get_current_admin)])
 async def update_merchant_by_admin(
     merchant_data: schemas.merchant.MerchantUpdate,
@@ -342,16 +421,24 @@ async def update_merchant_by_admin(
 
 @router.get("/categories/all", response_model=List[schemas.merchant.Category])
 async def get_all_categories(
-    is_active: Optional[bool] = Query(None),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    获取所有分类
+    获取所有可用分类
     """
-    return await merchant_service.get_categories(
-        db=db,
-        is_active=is_active
-    )
+    try:
+        from app.services import merchant_service
+        categories = await merchant_service.get_categories(db=db, is_active=True)
+        
+        print(f"返回分类列表，数量: {len(categories)}")
+        
+        return categories
+    except Exception as e:
+        print(f"获取分类列表失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取分类列表失败: {str(e)}"
+        )
 
 
 @router.post("/categories", response_model=schemas.merchant.Category, dependencies=[Depends(deps.get_current_admin)])

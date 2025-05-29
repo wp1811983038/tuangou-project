@@ -123,9 +123,53 @@ async def get_product_review_stats(
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    获取商品评价统计
+    获取商品评价统计 - 修复版
     """
-    return await review_service.get_product_review_stats(
-        db=db,
-        product_id=product_id
-    )
+    try:
+        print(f"⭐ 获取商品评价统计 - 商品ID: {product_id}")
+        
+        stats = await review_service.get_product_review_stats(
+            db=db,
+            product_id=product_id
+        )
+        
+        print(f"📊 原始评价统计: {stats}")
+        
+        # 🔧 确保返回标准格式
+        formatted_stats = {
+            "total_count": int(stats.get("total_count", 0) or 0),
+            "average_rating": float(stats.get("average_rating", 0) or 0),
+            "rating_distribution": []
+        }
+        
+        # 处理评分分布
+        if stats.get("rating_distribution"):
+            for item in stats["rating_distribution"]:
+                try:
+                    formatted_stats["rating_distribution"].append({
+                        "rating": int(item.get("rating", 0)),
+                        "count": int(item.get("count", 0))
+                    })
+                except:
+                    continue
+        else:
+            # 如果没有分布数据，创建默认的0分布
+            for rating in range(1, 6):
+                formatted_stats["rating_distribution"].append({
+                    "rating": rating,
+                    "count": 0
+                })
+        
+        print(f"✅ 格式化后的评价统计: {formatted_stats}")
+        return formatted_stats
+        
+    except Exception as e:
+        print(f"❌ 获取评价统计失败: {str(e)}")
+        # 返回默认数据
+        return {
+            "total_count": 0,
+            "average_rating": 0.0,
+            "rating_distribution": [
+                {"rating": i, "count": 0} for i in range(1, 6)
+            ]
+        }

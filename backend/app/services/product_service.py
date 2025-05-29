@@ -651,71 +651,73 @@ async def delete_product(db: Session, product_id: int, merchant_id: int) -> bool
     return True
 
 
-async def get_related_products(
-    db: Session, 
-    product_id: int, 
-    limit: int = 10
-) -> List[Dict]:
-    """获取相关商品"""
-    # 获取当前商品
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="商品不存在")
-    
-    # 获取当前商品的分类
-    category_ids = db.query(product_categories.c.category_id).filter(
-        product_categories.c.product_id == product_id
-    ).all()
-    category_ids = [c[0] for c in category_ids]
-    
-    if not category_ids:
-        # 如果没有分类，返回同一商户的其他商品
-        related_products = db.query(Product).filter(
-            Product.merchant_id == product.merchant_id,
-            Product.id != product_id,
-            Product.status == 1  # 上架状态
-        ).order_by(
-            Product.is_recommend.desc(),
-            Product.sales.desc()
-        ).limit(limit).all()
-    else:
-        # 查询同分类的其他商品
-        related_products = db.query(Product).join(
-            product_categories,
-            product_categories.c.product_id == Product.id
-        ).filter(
-            product_categories.c.category_id.in_(category_ids),
-            Product.id != product_id,
-            Product.status == 1  # 上架状态
-        ).order_by(
-            Product.is_recommend.desc(),
-            Product.sales.desc()
-        ).limit(limit).all()
-    
-    # 处理结果
-    result = []
-    for related in related_products:
-        merchant = db.query(Merchant).filter(Merchant.id == related.merchant_id).first()
+async def get_related_products(db: Session, product_id: int, limit: int = 6):
+    """获取相关商品 - 增强版"""
+    try:
+        print(f"🔍 查找相关商品 - 商品ID: {product_id}")
         
-        result.append({
-            "id": related.id,
-            "merchant_id": related.merchant_id,
-            "merchant_name": merchant.name if merchant else None,
-            "name": related.name,
-            "thumbnail": related.thumbnail,
-            "original_price": related.original_price,
-            "current_price": related.current_price,
-            "group_price": related.group_price,
-            "sales": related.sales,
-            "is_hot": related.is_hot,
-            "is_new": related.is_new,
-            "is_recommend": related.is_recommend,
-            # 添加缺失的时间戳字段
-            "created_at": related.created_at,
-            "updated_at": related.updated_at
-        })
-    
-    return result
+        # 获取当前商品信息
+        current_product = db.query(Product).filter(Product.id == product_id).first()
+        if not current_product:
+            print("⚠️ 当前商品不存在")
+            return []
+        
+        # 策略1: 同商户的其他商品
+        same_merchant_products = db.query(Product).filter(
+            Product.merchant_id == current_product.merchant_id,
+            Product.id != product_id,
+            Product.status == 1
+        ).limit(limit // 2).all()
+        
+        print(f"📍 同商户商品: {len(same_merchant_products)}")
+        
+        # 策略2: 同分类的其他商品
+        related_by_category = []
+        if len(same_merchant_products) < limit:
+            # 获取当前商品的分类
+            from app.models.product import ProductCategory
+            current_categories = db.query(ProductCategory).filter(
+                ProductCategory.product_id == product_id
+            ).all()
+            
+            if current_categories:
+                category_ids = [pc.category_id for pc in current_categories]
+                
+                related_by_category = db.query(Product).join(ProductCategory).filter(
+                    ProductCategory.category_id.in_(category_ids),
+                    Product.id != product_id,
+                    Product.merchant_id != current_product.merchant_id,
+                    Product.status == 1
+                ).limit(limit - len(same_merchant_products)).all()
+                
+                print(f"🏷️ 同分类商品: {len(related_by_category)}")
+        
+        # 合并结果
+        related_products = same_merchant_products + related_by_category
+        
+        # 如果还不够，用热门商品补充
+        if len(related_products) < limit:
+            popular_products = db.query(Product).filter(
+                Product.id != product_id,
+                Product.status == 1
+            ).order_by(Product.sales.desc()).limit(limit - len(related_products)).all()
+            
+            # 去重
+            existing_ids = {p.id for p in related_products}
+            for product in popular_products:
+                if product.id not in existing_ids:
+                    related_products.append(product)
+                    if len(related_products) >= limit:
+                        break
+            
+            print(f"🔥 热门商品补充: {len(related_products)}")
+        
+        print(f"✅ 最终相关商品数量: {len(related_products)}")
+        return related_products[:limit]
+        
+    except Exception as e:
+        print(f"❌ 获取相关商品服务失败: {str(e)}")
+        return []
 
 
 

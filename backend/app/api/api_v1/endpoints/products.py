@@ -1,16 +1,17 @@
 # backend/app/api/api_v1/endpoints/products.py
+
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, File, UploadFile
-from fastapi import status as http_status  # 重命名导入的status模块
+from fastapi import status as http_status
 from sqlalchemy.orm import Session
+import traceback
 
 from app import schemas
 from app.api import deps
 from app.services import product_service
 
 router = APIRouter()
-
 
 
 @router.get("/", response_model=schemas.common.PaginatedResponse)
@@ -28,15 +29,23 @@ async def search_products(
     sort_by: Optional[str] = Query(None),
     sort_order: Optional[str] = Query(None, regex="^(asc|desc)$"),
     pagination: dict = Depends(deps.get_pagination_params),
-    current_user: Optional[schemas.user.User] = Depends(deps.get_current_user),
+    # 🔐 重新要求用户认证
+    current_user: schemas.user.User = Depends(deps.get_current_active_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    搜索商品列表 - 公开接口
+    搜索商品列表 - 需要用户登录
     """
-    user_id = current_user.id if current_user else None
-    
     try:
+        print(f"🔍 已登录用户({current_user.nickname})请求商品列表:")
+        print(f"  - merchant_id: {merchant_id}")
+        print(f"  - keyword: {keyword}")
+        print(f"  - status: {status}")
+        print(f"  - pagination: {pagination}")
+        
+        # 传递用户ID以获取个人化信息（如收藏状态）
+        user_id = current_user.id
+        
         products, total = await product_service.search_products(
             db=db,
             keyword=keyword,
@@ -56,27 +65,79 @@ async def search_products(
             limit=pagination["limit"]
         )
         
-        # 添加调试输出
-        print(f"搜索到 {len(products)} 个商品")
-        if products:
-            print(f"第一个商品数据类型: {type(products[0])}")
-            # 如果返回的是ORM对象列表，需要转换
-            if hasattr(products[0], '__dict__'):
-                print("警告: 商品列表包含ORM对象，需要转换")
-                # 这里应该确保search_products返回的是字典列表
+        print(f"✅ 服务层返回 {len(products)} 个商品")
+        
+        # 强制检查返回类型并转换
+        if products and len(products) > 0:
+            first_item_type = type(products[0])
+            print(f"📊 检查第一个商品类型: {first_item_type}")
+            
+            if not isinstance(products[0], dict):
+                print(f"❌ 检测到ORM对象，强制转换为字典...")
+                
+                converted_products = []
+                for i, product in enumerate(products):
+                    try:
+                        if hasattr(product, '__dict__'):  # 是ORM对象
+                            product_dict = {
+                                "id": getattr(product, 'id', 0),
+                                "merchant_id": getattr(product, 'merchant_id', 0),
+                                "merchant_name": "",
+                                "name": getattr(product, 'name', ''),
+                                "thumbnail": getattr(product, 'thumbnail', ''),
+                                "original_price": float(getattr(product, 'original_price', 0) or 0),
+                                "current_price": float(getattr(product, 'current_price', 0) or 0),
+                                "group_price": float(getattr(product, 'group_price', 0)) if getattr(product, 'group_price') else None,
+                                "stock": int(getattr(product, 'stock', 0) or 0),
+                                "unit": getattr(product, 'unit', '件'),
+                                "description": getattr(product, 'description', ''),
+                                "sales": int(getattr(product, 'sales', 0) or 0),
+                                "views": int(getattr(product, 'views', 0) or 0),
+                                "status": int(getattr(product, 'status', 1) or 1),
+                                "sort_order": int(getattr(product, 'sort_order', 0) or 0),
+                                "is_hot": bool(getattr(product, 'is_hot', False)),
+                                "is_new": bool(getattr(product, 'is_new', True)),
+                                "is_recommend": bool(getattr(product, 'is_recommend', False)),
+                                "has_group": False,
+                                "favorite_count": 0,
+                                "is_favorite": False,  # 这里可以通过user_id查询真实的收藏状态
+                                "categories": [],
+                                "created_at": getattr(product, 'created_at', None),
+                                "updated_at": getattr(product, 'updated_at', None)
+                            }
+                            converted_products.append(product_dict)
+                            print(f"   ✅ 转换商品 {i+1}: {product_dict['name']}")
+                        else:
+                            converted_products.append(product)
+                    except Exception as e:
+                        print(f"   ❌ 转换商品 {i+1} 失败: {e}")
+                        continue
+                
+                products = converted_products
+                print(f"🎉 强制转换完成，现在有 {len(products)} 个字典")
+        
+        # 最终类型检查
+        if products and not isinstance(products[0], dict):
+            raise HTTPException(
+                status_code=500,
+                detail=f"商品数据转换失败: {type(products[0])}"
+            )
         
         return {
             "data": {
-                "items": products,  # 确保这是字典列表，而不是ORM对象列表
+                "items": products,
                 "total": total,
                 "page": pagination["page"],
                 "page_size": pagination["page_size"],
                 "pages": (total + pagination["page_size"] - 1) // pagination["page_size"]
             }
         }
+        
+    except HTTPException as e:
+        print(f"❌ HTTP异常: {e.detail}")
+        raise
     except Exception as e:
-        print(f"搜索商品失败: {str(e)}")
-        import traceback
+        print(f"❌ API异常: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -84,6 +145,13 @@ async def search_products(
         )
 
 
+
+
+
+# 🔧 修复2：在 backend/app/api/api_v1/endpoints/products.py 中
+# 同时修复商户商品接口的序列化问题
+
+# 🔥 商户商品列表 - 需要商户认证
 @router.get("/merchant", response_model=schemas.common.PaginatedResponse)
 async def get_merchant_products(
     keyword: Optional[str] = Query(None, max_length=100),
@@ -102,8 +170,10 @@ async def get_merchant_products(
     current_user: schemas.user.User = Depends(deps.get_current_merchant),
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """获取当前商户的商品列表 - 商户专用接口"""
+    """获取当前商户的商品列表 - 需要商户认证"""
     try:
+        print(f"🏪 商户 {current_user.merchant_id} 请求商品列表")
+        
         products, total = await product_service.search_products(
             db=db,
             keyword=keyword,
@@ -116,55 +186,54 @@ async def get_merchant_products(
             is_new=is_new,
             is_recommend=is_recommend,
             has_group=has_group,
+            min_stock=min_stock,
             sort_by=sort_by,
             sort_order=sort_order,
-            user_id=None,
+            user_id=current_user.id,  # 传递用户ID
             skip=pagination["skip"],
             limit=pagination["limit"]
         )
         
-        # 检查返回的数据类型并强制转换
-        print(f"返回的products类型: {type(products)}")
-        if products and len(products) > 0:
-            print(f"第一个商品的类型: {type(products[0])}")
-            
-            # 如果返回的是ORM对象列表，手动转换为字典列表
-            if hasattr(products[0], '__dict__'):
-                print("检测到ORM对象，开始转换...")
-                converted_products = []
-                
-                for product in products:
-                    # 手动转换ORM对象为字典
+        print(f"✅ 商户商品列表获取成功: {len(products)} 个商品")
+        
+        # 强制检查数据类型
+        if products and not isinstance(products[0], dict):
+            print(f"❌ 检测到ORM对象，强制转换...")
+            # 应用前面的强制转换逻辑
+            converted_products = []
+            for i, product in enumerate(products):
+                if hasattr(product, '__dict__'):
                     product_dict = {
-                        "id": product.id,
-                        "merchant_id": product.merchant_id,
-                        "name": str(product.name or ""),
-                        "thumbnail": str(product.thumbnail or ""),
-                        "original_price": float(product.original_price or 0),
-                        "current_price": float(product.current_price or 0),
-                        "group_price": float(product.group_price) if product.group_price else None,
-                        "stock": int(product.stock or 0),
-                        "unit": str(product.unit or "件"),
-                        "description": str(product.description or ""),
-                        "sales": int(product.sales or 0),
-                        "views": int(product.views or 0),
-                        "status": int(product.status or 1),
-                        "sort_order": int(product.sort_order or 0),
-                        "is_hot": bool(product.is_hot or False),
-                        "is_new": bool(product.is_new or True),
-                        "is_recommend": bool(product.is_recommend or False),
-                        "has_group": False,  # 暂时设为False
-                        "favorite_count": 0,  # 暂时设为0
-                        "is_favorite": False,  # 暂时设为False
-                        "merchant_name": "",  # 暂时为空
-                        "categories": [],  # 暂时为空数组
-                        "created_at": product.created_at,
-                        "updated_at": product.updated_at
+                        "id": getattr(product, 'id', 0),
+                        "merchant_id": getattr(product, 'merchant_id', 0),
+                        "merchant_name": "",
+                        "name": getattr(product, 'name', ''),
+                        "thumbnail": getattr(product, 'thumbnail', ''),
+                        "original_price": float(getattr(product, 'original_price', 0) or 0),
+                        "current_price": float(getattr(product, 'current_price', 0) or 0),
+                        "group_price": float(getattr(product, 'group_price', 0)) if getattr(product, 'group_price') else None,
+                        "stock": int(getattr(product, 'stock', 0) or 0),
+                        "unit": getattr(product, 'unit', '件'),
+                        "description": getattr(product, 'description', ''),
+                        "sales": int(getattr(product, 'sales', 0) or 0),
+                        "views": int(getattr(product, 'views', 0) or 0),
+                        "status": int(getattr(product, 'status', 1) or 1),
+                        "sort_order": int(getattr(product, 'sort_order', 0) or 0),
+                        "is_hot": bool(getattr(product, 'is_hot', False)),
+                        "is_new": bool(getattr(product, 'is_new', True)),
+                        "is_recommend": bool(getattr(product, 'is_recommend', False)),
+                        "has_group": False,
+                        "favorite_count": 0,
+                        "is_favorite": False,
+                        "categories": [],
+                        "created_at": getattr(product, 'created_at', None),
+                        "updated_at": getattr(product, 'updated_at', None)
                     }
                     converted_products.append(product_dict)
-                
-                products = converted_products
-                print(f"转换完成，转换了 {len(products)} 个商品")
+                else:
+                    converted_products.append(product)
+            products = converted_products
+            print(f"🎉 强制转换完成: {len(products)} 个字典")
         
         return {
             "data": {
@@ -175,9 +244,11 @@ async def get_merchant_products(
                 "pages": (total + pagination["page_size"] - 1) // pagination["page_size"]
             }
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"获取商品列表失败: {str(e)}")
-        import traceback
+        print(f"❌ 获取商户商品列表失败: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -185,7 +256,52 @@ async def get_merchant_products(
         )
 
 
-@router.get("/{product_id}", response_model=schemas.product.ProductDetail)
+
+@router.get("/{product_id}")
+async def get_product(
+    product_id: int = Path(..., ge=1),
+    # 🔐 重新要求用户认证
+    current_user: schemas.user.User = Depends(deps.get_current_active_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    获取商品详情 - 需要用户登录
+    """
+    try:
+        user_id = current_user.id
+        
+        print(f"🔍 用户({current_user.nickname})获取商品详情: product_id={product_id}")
+        
+        product = await product_service.get_product(
+            db=db,
+            product_id=product_id,
+            user_id=user_id
+        )
+        
+        print(f"✅ 商品详情获取成功: {product.get('name', 'unknown')}")
+        print(f"📊 商品详情数据类型: {type(product)}")
+        
+        # 确保返回的是字典
+        if not isinstance(product, dict):
+            print(f"❌ 商品详情不是字典，数据有问题...")
+            raise HTTPException(
+                status_code=500,
+                detail="商品详情数据序列化错误"
+            )
+        
+        return product
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 获取商品详情失败: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取商品详情失败: {str(e)}"
+        )
+
+@router.get("/{product_id}")
 async def get_product(
     product_id: int = Path(..., ge=1),
     current_user: Optional[schemas.user.User] = Depends(deps.get_current_user),
@@ -194,45 +310,34 @@ async def get_product(
     """
     获取商品详情
     """
-    user_id = current_user.id if current_user else None
-    
     try:
-        # 确保这里调用的是服务层函数，返回字典
+        user_id = current_user.id if current_user else None
+        
+        print(f"🔍 获取商品详情请求: product_id={product_id}, user_id={user_id}")
+        
+        # 调用修复后的服务层函数
         product = await product_service.get_product(
             db=db,
             product_id=product_id,
             user_id=user_id
         )
         
-        if not product:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="商品不存在"
-            )
+        print(f"✅ 商品详情获取成功: {product.get('name', 'unknown')}")
         
-        # 添加调试输出
-        print(f"API返回数据类型: {type(product)}")
-        if isinstance(product, dict):
-            print(f"返回字典键: {list(product.keys())}")
-        else:
-            print(f"警告: 返回的不是字典类型，而是: {type(product)}")
-            # 如果返回的是ORM对象，转换为字典
-            if hasattr(product, '__dict__'):
-                product_dict = {}
-                for key, value in product.__dict__.items():
-                    if not key.startswith('_'):  # 跳过SQLAlchemy内部属性
-                        if hasattr(value, '__dict__'):  # 如果是嵌套的ORM对象
-                            continue  # 跳过复杂对象
-                        product_dict[key] = value
-                product = product_dict
+        # 确保返回的是字典
+        if not isinstance(product, dict):
+            print(f"❌ 商品详情数据类型错误: {type(product)}")
+            raise HTTPException(
+                status_code=500,
+                detail="商品详情数据序列化错误"
+            )
         
         return product
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"获取商品详情失败: {str(e)}")
-        import traceback
+        print(f"❌ 获取商品详情失败: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -280,7 +385,6 @@ async def update_product(
 ) -> Any:
     """更新商品"""
     try:
-        # 修改这一行：get_product_by_id_raw -> get_product_by_id
         existing_product = await product_service.get_product_by_id(db=db, product_id=product_id)
         
         if not existing_product:
@@ -414,7 +518,6 @@ async def delete_product(
 ) -> Any:
     """删除商品"""
     try:
-        # 修改这一行：get_product_by_id_raw -> get_product_by_id
         existing_product = await product_service.get_product_by_id(db=db, product_id=product_id)
         
         if not existing_product:
@@ -460,29 +563,121 @@ async def delete_product(
 @router.get("/{product_id}/related", response_model=List[schemas.product.Product])
 async def get_related_products(
     product_id: int = Path(..., ge=1),
-    limit: int = Query(10, ge=1, le=20),
+    limit: int = Query(6, ge=1, le=20),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    获取相关商品
+    获取相关商品 - 修复版
     """
     try:
+        print(f"🔗 获取相关商品请求 - 商品ID: {product_id}, 限制: {limit}")
+        
         related_products = await product_service.get_related_products(
             db=db,
             product_id=product_id,
             limit=limit
         )
-        return related_products
+        
+        print(f"📦 原始相关商品数据: {len(related_products) if related_products else 'None'}")
+        
+        # 🔧 确保返回数组格式
+        if not related_products:
+            print("⚠️ 未找到相关商品，返回空数组")
+            return []
+            
+        if not isinstance(related_products, list):
+            print("⚠️ 相关商品数据不是数组格式，进行转换")
+            related_products = [related_products] if related_products else []
+        
+        # 🔧 过滤和格式化数据
+        formatted_products = []
+        for product in related_products:
+            try:
+                if hasattr(product, '__dict__'):  # ORM对象
+                    formatted_product = {
+                        "id": product.id,
+                        "name": str(product.name or ""),
+                        "thumbnail": str(product.thumbnail or ""),
+                        "current_price": float(product.current_price or 0),
+                        "original_price": float(product.original_price or 0),
+                        "sales": int(product.sales or 0),
+                        "merchant_name": str(getattr(product, 'merchant_name', '') or ""),
+                        "status": int(product.status or 1)
+                    }
+                else:  # 字典对象
+                    formatted_product = {
+                        "id": product.get("id", 0),
+                        "name": str(product.get("name", "")),
+                        "thumbnail": str(product.get("thumbnail", "")),
+                        "current_price": float(product.get("current_price", 0)),
+                        "original_price": float(product.get("original_price", 0)),
+                        "sales": int(product.get("sales", 0)),
+                        "merchant_name": str(product.get("merchant_name", "")),
+                        "status": int(product.get("status", 1))
+                    }
+                
+                # 只添加有效的商品
+                if formatted_product["id"] > 0 and formatted_product["name"]:
+                    formatted_products.append(formatted_product)
+                    
+            except Exception as e:
+                print(f"⚠️ 格式化相关商品数据失败: {str(e)}")
+                continue
+        
+        print(f"✅ 返回 {len(formatted_products)} 个相关商品")
+        return formatted_products
+        
     except Exception as e:
+        print(f"❌ 获取相关商品失败: {str(e)}")
         import traceback
-        print(f"获取相关商品失败: {str(e)}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取相关商品失败: {str(e)}"
+        traceback.print_exc()
+        # 返回空数组而不是抛出异常
+        return []
+
+
+@router.get("/merchant/{merchant_id}/categories/{category_id}", response_model=schemas.common.PaginatedResponse)
+async def get_merchant_category_products(
+    merchant_id: int = Path(..., ge=1),
+    category_id: int = Path(..., ge=1),
+    pagination: dict = Depends(deps.get_pagination_params),
+    sort_by: Optional[str] = Query("created_at"),
+    sort_order: Optional[str] = Query("desc", regex="^(asc|desc)$"),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """
+    获取指定商户指定分类的商品列表
+    """
+    try:
+        products, total = await product_service.search_products(
+            db=db,
+            merchant_id=merchant_id,
+            category_id=category_id,
+            status=1,  # 只获取上架商品
+            sort_by=sort_by,
+            sort_order=sort_order,
+            skip=pagination["skip"],
+            limit=pagination["limit"]
         )
+        
+        return {
+            "data": {
+                "items": products,
+                "total": total,
+                "page": pagination["page"],
+                "page_size": pagination["page_size"],
+                "pages": (total + pagination["page_size"] - 1) // pagination["page_size"]
+            }
+        }
+    except Exception as e:
+        print(f"获取商户分类商品失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取商户分类商品失败: {str(e)}"
+        )
+    
 
 
+    
 @router.post("/batch")
 async def batch_operation_products(
     request_data: dict = Body(...),
@@ -591,23 +786,18 @@ async def get_product_stats(
     current_user: schemas.user.User = Depends(deps.get_current_merchant),
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """
-    获取商品统计概览
-    """
+    """获取商品统计概览"""
     try:
         stats = await product_service.get_merchant_product_stats(
             db=db,
             merchant_id=current_user.merchant_id
         )
-        
-        return {
-            "data": stats
-        }
+        return {"data": stats}
     except Exception as e:
-        import traceback
-        print(f"获取统计数据失败: {str(e)}")
-        print(traceback.format_exc())
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取统计数据失败: {str(e)}"
         )
+
+
+# 🔐 商品列表 - 需要用户认证
