@@ -30,6 +30,7 @@ Page({
     merchantsLoading: false,           // 商户加载状态
     merchantsPage: 1,                  // 商户页码
     merchantsHasMore: true,            // 是否有更多商户
+    allMerchants: [],                  // 所有商户列表（用于切换面板）
     
     // 商品数据
     products: [],                      // 商品列表
@@ -51,8 +52,11 @@ Page({
     
     // UI状态
     loading: false,                    // 页面主加载状态
+    loadingMore: false,                // 加载更多状态
     showSortPanel: false,              // 显示排序面板
+    showMerchantSwitchPanel: false,    // 显示商户切换面板
     refreshing: false,                 // 下拉刷新状态
+    pageLoading: false,                // 页面初始加载状态
     
     // 分页配置
     pageSize: 10
@@ -196,7 +200,7 @@ Page({
 
   // 初始化页面
   async initPage() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, pageLoading: true });
     
     try {
       // 并行加载位置和分类数据
@@ -212,7 +216,7 @@ Page({
         icon: 'none'
       });
     } finally {
-      this.setData({ loading: false });
+      this.setData({ loading: false, pageLoading: false });
     }
   },
 
@@ -541,7 +545,7 @@ Page({
       return;
     }
     
-    this.setData({ productsLoading: true });
+    this.setData({ productsLoading: true, loadingMore: !reset });
     
     try {
       const params = {
@@ -606,14 +610,15 @@ Page({
         products: reset ? result.items : [...this.data.products, ...result.items],
         productsPage: (reset ? 1 : productsPage) + 1,
         productsHasMore: result.items.length === pageSize,
-        productsLoading: false
+        productsLoading: false,
+        loadingMore: false
       });
       
       console.log(`✅ 商品加载完成: 当前页 ${result.items.length} 个，总计 ${reset ? result.items.length : this.data.products.length} 个`);
       
     } catch (error) {
       console.error('❌ 加载商品失败', error);
-      this.setData({ productsLoading: false });
+      this.setData({ productsLoading: false, loadingMore: false });
       
       if (reset) {
         let errorMessage = '加载商品失败';
@@ -730,28 +735,209 @@ Page({
     }
   },
 
-  // 跳转到搜索页
-  goToSearch() {
+  // 商品卡片事件处理
+  onProductTap(e) {
+    const { product, productId } = e.detail;
+    console.log('🛍️ 点击商品:', product?.name || productId);
+    
     wx.navigateTo({
-      url: '/pages/search/index'
+      url: `/pages/product/detail/index?id=${productId}`
     });
   },
 
-  // 跳转到商户详情页
-  goToMerchant(e) {
-    const { id } = e.currentTarget.dataset;
-    console.log('🔗 跳转到商户详情:', id);
+  // 商品收藏事件处理
+  async onProductFavorite(e) {
+    const { product, productId, isFavorite } = e.detail;
+    
+    // 检查登录状态
+    const { checkLoginStatus } = require('../../utils/auth');
+    if (!checkLoginStatus()) return;
+    
+    try {
+      // 调用收藏接口
+      const { post } = require('../../utils/request');
+      const { formatUrl } = require('../../config/api');
+      
+      await post(formatUrl('/users/favorites/{product_id}', { product_id: productId }));
+      
+      // 更新商品列表中的收藏状态
+      const { products } = this.data;
+      const updatedProducts = products.map(item => {
+        if (item.id === productId) {
+          return { ...item, is_favorite: !isFavorite };
+        }
+        return item;
+      });
+      
+      this.setData({ products: updatedProducts });
+      
+      wx.showToast({
+        title: !isFavorite ? '收藏成功' : '取消收藏',
+        icon: 'success'
+      });
+      
+    } catch (error) {
+      console.error('❌ 收藏操作失败', error);
+      wx.showToast({
+        title: '操作失败，请重试',
+        icon: 'none'
+      });
+    }
+  },
+
+  // 商品购买事件处理
+  onProductBuy(e) {
+    const { product, productId } = e.detail;
+    
+    // 检查登录状态
+    const { checkLoginStatus } = require('../../utils/auth');
+    if (!checkLoginStatus()) return;
+    
+    console.log('🛒 购买商品:', product?.name || productId);
+    
+    // 检查库存
+    if (product && product.stock <= 0) {
+      wx.showToast({
+        title: '该商品暂时缺货',
+        icon: 'none'
+      });
+      return;
+    }
+    
+    // 如果商品有规格选择，跳转到商品详情页选择规格
+    if (product && product.specifications && product.specifications.length > 0) {
+      wx.navigateTo({
+        url: `/pages/product/detail/index?id=${productId}`
+      });
+      return;
+    }
+    
+    // 直接购买（构建订单数据）
+    const orderData = {
+      items: [{
+        product_id: productId,
+        quantity: 1,
+        specifications: {}
+      }]
+    };
+    
     wx.navigateTo({
-      url: `/pages/merchant/detail/index?id=${id}`
+      url: `/pages/order/create/index?data=${encodeURIComponent(JSON.stringify(orderData))}`
     });
   },
 
-  // 跳转到商品详情页
-  goToProduct(e) {
-    const { id } = e.currentTarget.dataset;
-    console.log('🔗 跳转到商品详情:', id);
-    wx.navigateTo({
-      url: `/pages/product/detail/index?id=${id}`
+  // 选择商户事件处理
+  selectMerchant(e) {
+    const merchant = e.currentTarget.dataset.merchant;
+    console.log('🏪 选择商户:', merchant.name);
+    
+    // 保存选中商户到缓存
+    wx.setStorageSync('currentMerchant', merchant);
+    
+    // 跳转到商户详情页或切换到商户模式
+    wx.showActionSheet({
+      itemList: ['查看商户详情', '进入商户专属模式'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          // 查看商户详情
+          wx.navigateTo({
+            url: `/pages/merchant/detail/index?id=${merchant.id}`
+          });
+        } else if (res.tapIndex === 1) {
+          // 进入商户专属模式
+          this.setData({
+            currentMerchant: merchant,
+            isMerchantMode: true,
+            lastMerchantId: merchant.id,
+            displayMode: 'products', // 商户模式只显示商品
+            categories: [],
+            products: [],
+            currentCategory: null
+          });
+          
+          // 更新页面标题
+          wx.setNavigationBarTitle({
+            title: `${merchant.name} - 分类`
+          });
+          
+          // 重新加载分类数据
+          this.loadCategories();
+          
+          wx.showToast({
+            title: `已进入${merchant.name}专属模式`,
+            icon: 'success'
+          });
+        }
+      }
+    });
+  },
+
+  // 显示商户切换面板
+  showMerchantSwitchPanel() {
+    // 首先加载商户列表
+    this.loadNearbyMerchants();
+    this.setData({ showMerchantSwitchPanel: true });
+  },
+
+  // 隐藏商户切换面板
+  hideMerchantSwitchPanel() {
+    this.setData({ showMerchantSwitchPanel: false });
+  },
+
+  // 加载附近商户
+  async loadNearbyMerchants() {
+    try {
+      const { location } = this.data;
+      
+      const params = {
+        page_size: 20,
+        status: 1
+      };
+      
+      if (location && location.latitude && location.longitude) {
+        params.latitude = location.latitude;
+        params.longitude = location.longitude;
+        params.distance = 10; // 10公里范围内
+      }
+      
+      const result = await getMerchantsByCategory(params);
+      this.setData({ allMerchants: result.items });
+      
+    } catch (error) {
+      console.error('❌ 加载附近商户失败', error);
+    }
+  },
+
+  // 切换到其他商户
+  switchToMerchant(e) {
+    const merchant = e.currentTarget.dataset.merchant;
+    console.log('🔄 切换到商户:', merchant.name);
+    
+    // 保存到缓存
+    wx.setStorageSync('currentMerchant', merchant);
+    
+    // 更新当前状态
+    this.setData({
+      currentMerchant: merchant,
+      isMerchantMode: true,
+      lastMerchantId: merchant.id,
+      showMerchantSwitchPanel: false,
+      categories: [],
+      products: [],
+      currentCategory: null
+    });
+    
+    // 更新页面标题
+    wx.setNavigationBarTitle({
+      title: `${merchant.name} - 分类`
+    });
+    
+    // 重新加载数据
+    this.loadCategories();
+    
+    wx.showToast({
+      title: `已切换到${merchant.name}`,
+      icon: 'success'
     });
   },
 
@@ -850,47 +1036,100 @@ Page({
     });
   },
 
-  // 调试当前状态
-  debugCurrentState() {
-    const { currentMerchant, isMerchantMode, categories, currentCategory, lastMerchantId } = this.data;
-    
-    console.log('🔧 当前页面状态调试信息:');
-    console.log('- 商户模式:', isMerchantMode);
-    console.log('- 当前商户:', currentMerchant?.name || '无');
-    console.log('- 商户ID:', currentMerchant?.id || '无');
-    console.log('- 上次商户ID:', lastMerchantId);
-    console.log('- 分类数量:', categories.length);
-    console.log('- 分类列表:', categories.map(c => `${c.id}:${c.name}`).join(', '));
-    console.log('- 当前分类:', currentCategory?.name || '无');
-    console.log('- 缓存商户:', wx.getStorageSync('currentMerchant')?.name || '无');
-    
-    return {
-      currentMerchant,
-      isMerchantMode,
-      categories,
-      currentCategory,
-      lastMerchantId,
-      cachedMerchant: wx.getStorageSync('currentMerchant')
+  // 获取分类表情符号
+  getCategoryEmoji(categoryName) {
+    const emojiMap = {
+      '全部': '🏪',
+      '美食': '🍜',
+      '生鲜': '🥬',
+      '甜品': '🍰',
+      '饮品': '🧃',
+      '服装': '👕',
+      '日用品': '🧴',
+      '电子产品': '📱',
+      '图书': '📚',
+      '运动': '⚽',
+      '美妆': '💄'
     };
+    
+    return emojiMap[categoryName] || '📦';
   },
 
-  // 手动刷新方法
-  manualRefresh() {
-    console.log('🔄 手动刷新分类数据');
-    this.checkCurrentMerchant();
-    this.loadCategories();
+  // 获取空状态文本
+  getEmptyText() {
+    const { displayMode, isMerchantMode, currentMerchant, currentCategory, searchKeyword } = this.data;
+    
+    if (searchKeyword) {
+      return `未找到包含"${searchKeyword}"的${displayMode === 'merchants' ? '商户' : '商品'}`;
+    }
+    
+    if (isMerchantMode && currentMerchant) {
+      if (currentCategory && currentCategory.id > 0) {
+        return `${currentMerchant.name}在"${currentCategory.name}"分类下暂无商品`;
+      }
+      return `${currentMerchant.name}暂无商品`;
+    }
+    
+    if (displayMode === 'merchants') {
+      if (currentCategory && currentCategory.id > 0) {
+        return `"${currentCategory.name}"分类下暂无商户`;
+      }
+      return '暂无商户';
+    } else {
+      if (currentCategory && currentCategory.id > 0) {
+        return `"${currentCategory.name}"分类下暂无商品`;
+      }
+      return '暂无商品';
+    }
+  },
+
+  // 获取排序选项
+  getSortOptions() {
+    const { displayMode, isMerchantMode } = this.data;
+    
+    if (isMerchantMode || displayMode === 'products') {
+      // 商品排序选项
+      return [
+        { value: 'default', label: '默认排序' },
+        { value: 'sales', label: '销量最高' },
+        { value: 'price_asc', label: '价格从低到高' },
+        { value: 'price_desc', label: '价格从高到低' },
+        { value: 'rating', label: '评分最高' },
+        { value: 'created_at', label: '最新上架' }
+      ];
+    } else {
+      // 商户排序选项
+      return [
+        { value: 'default', label: '默认排序' },
+        { value: 'rating', label: '评分最高' },
+        { value: 'distance', label: '距离最近' },
+        { value: 'created_at', label: '最新入驻' }
+      ];
+    }
   },
 
   // 获取当前排序名称
-  get currentSortName() {
-    const { sortBy, sortOptions } = this.data;
+  getCurrentSortName() {
+    const { sortBy } = this.data;
+    const sortOptions = this.getSortOptions();
     const option = sortOptions.find(opt => opt.value === sortBy);
     return option ? option.label : '默认排序';
   },
 
   // 获取当前分类名称
-  get currentCategoryName() {
+  getCurrentCategoryName() {
     const { currentCategory } = this.data;
     return currentCategory ? currentCategory.name : '全部';
+  },
+
+  // 检查是否有更多数据
+  getHasMore() {
+    const { displayMode, isMerchantMode, productsHasMore, merchantsHasMore } = this.data;
+    
+    if (isMerchantMode || displayMode === 'products') {
+      return productsHasMore;
+    } else {
+      return merchantsHasMore;
+    }
   }
 });

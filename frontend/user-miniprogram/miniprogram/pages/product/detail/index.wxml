@@ -1,2 +1,360 @@
-<!--pages/product/detail/index.wxml-->
-<text>pages/product/detail/index.wxml</text>
+<!--pages/product/detail/index.wxml - 商品详情页-->
+<view class="container">
+
+  <!-- 页面加载状态 -->
+  <view class="page-loading" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 主要内容 -->
+  <scroll-view class="main-content" scroll-y="{{true}}" wx:if="{{!loading && product}}">
+    
+    <!-- 商品图片轮播 -->
+    <view class="product-gallery">
+      <swiper class="gallery-swiper" 
+              indicator-dots="{{previewImages.length > 1}}"
+              indicator-color="rgba(255,255,255,0.5)"
+              indicator-active-color="#ffffff"
+              autoplay="{{false}}"
+              circular="{{true}}"
+              bindchange="onImageChange">
+        <swiper-item wx:for="{{previewImages}}" wx:key="index">
+          <image class="gallery-image" 
+                 src="{{item}}" 
+                 mode="aspectFill"
+                 data-index="{{index}}"
+                 bindtap="previewImage"
+                 lazy-load="{{true}}"></image>
+        </swiper-item>
+      </swiper>
+      
+      <!-- 图片指示器（自定义） -->
+      <view class="custom-indicator" wx:if="{{previewImages.length > 1}}">
+        <text class="indicator-text">{{currentImageIndex + 1}}/{{previewImages.length}}</text>
+      </view>
+
+      <!-- 商品标签 -->
+      <view class="product-tags" wx:if="{{product.is_hot || product.is_new || product.is_recommend}}">
+        <text class="product-tag hot" wx:if="{{product.is_hot}}">热门</text>
+        <text class="product-tag new" wx:if="{{product.is_new}}">新品</text>
+        <text class="product-tag recommend" wx:if="{{product.is_recommend}}">推荐</text>
+      </view>
+
+      <!-- 收藏和分享按钮 -->
+      <view class="action-buttons">
+        <view class="action-btn favorite-btn {{isFavorite ? 'active' : ''}}" bindtap="toggleFavorite">
+          <text class="iconfont icon-heart"></text>
+        </view>
+        <view class="action-btn share-btn" bindtap="showShare">
+          <text class="iconfont">📤</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 商品基本信息 -->
+    <view class="product-basic-info">
+      <!-- 价格区域 -->
+      <view class="price-section">
+        <view class="current-price">
+          <text class="currency">¥</text>
+          <text class="price-value">{{formatPrice(product.current_price)}}</text>
+        </view>
+        <view class="price-compare" wx:if="{{product.original_price > product.current_price}}">
+          <text class="original-price">¥{{formatPrice(product.original_price)}}</text>
+          <text class="discount-tag">
+            {{Math.floor((1 - product.current_price / product.original_price) * 10)}}折
+          </text>
+        </view>
+      </view>
+
+      <!-- 商品标题和销量 -->
+      <view class="product-title">{{product.name}}</view>
+      <view class="product-subtitle" wx:if="{{product.description}}">{{product.description}}</view>
+      
+      <!-- 销量和库存 -->
+      <view class="product-stats">
+        <text class="sales-text">已售{{formatSales(product.sales)}}</text>
+        <text class="stock-text" wx:if="{{product.stock <= 10}}">仅剩{{product.stock}}件</text>
+        <text class="reviews-text" wx:if="{{reviewStats && reviewStats.total_count > 0}}" bindtap="viewAllReviews">
+          {{reviewStats.total_count}}条评价
+        </text>
+      </view>
+    </view>
+
+    <!-- 团购信息 -->
+    <view class="group-section" wx:if="{{activeGroups.length > 0}}">
+      <view class="section-header">
+        <text class="section-title">🎯 进行中的团购</text>
+        <text class="section-subtitle">更优惠的价格等你来</text>
+      </view>
+      
+      <scroll-view class="group-list" scroll-x="{{true}}">
+        <view class="group-item" wx:for="{{activeGroups}}" wx:key="id" 
+              data-group-id="{{item.id}}" bindtap="joinGroup">
+          <view class="group-header">
+            <text class="group-price">¥{{formatPrice(item.group_price)}}</text>
+            <text class="group-people">{{item.required_people}}人团</text>
+          </view>
+          <view class="group-progress">
+            <progress percent="{{(item.current_people / item.required_people) * 100}}" 
+                      stroke-width="6" 
+                      activeColor="#FF4D4F"
+                      backgroundColor="#f5f5f5"></progress>
+          </view>
+          <view class="group-info">
+            <text class="group-status">还差{{item.required_people - item.current_people}}人</text>
+            <text class="group-time">{{item.remaining_time}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 商户信息 -->
+    <view class="merchant-section" wx:if="{{merchant}}" bindtap="viewMerchant">
+      <view class="merchant-card">
+        <image class="merchant-logo" src="{{merchant.logo || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+        <view class="merchant-info">
+          <text class="merchant-name">{{merchant.name}}</text>
+          <view class="merchant-stats">
+            <text class="merchant-rating" wx:if="{{merchant.rating}}">⭐ {{merchant.rating}}分</text>
+            <text class="merchant-distance" wx:if="{{deliveryInfo}}">{{deliveryInfo.distance}}</text>
+          </view>
+          <text class="delivery-info" wx:if="{{deliveryInfo}}">
+            配送费¥{{deliveryInfo.fee}} · 预计{{deliveryInfo.time}}送达
+          </text>
+        </view>
+        <view class="merchant-arrow">
+          <text class="arrow-icon">></text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 规格选择 -->
+    <view class="spec-section" wx:if="{{product.specifications && product.specifications.length > 0}}">
+      <view class="spec-selector" bindtap="showSpecSelector" data-mode="buy">
+        <text class="spec-label">规格</text>
+        <text class="spec-value">{{getSpecDescription()}}</text>
+        <text class="spec-arrow">></text>
+      </view>
+    </view>
+
+    <!-- 商品详情 -->
+    <view class="product-detail-section">
+      <view class="section-header">
+        <text class="section-title">商品详情</text>
+      </view>
+      
+      <!-- 商品描述 -->
+      <view class="product-description" wx:if="{{product.detail_description}}">
+        <rich-text nodes="{{product.detail_description}}"></rich-text>
+      </view>
+      
+      <!-- 商品参数 -->
+      <view class="product-params" wx:if="{{product.parameters && product.parameters.length > 0}}">
+        <view class="param-item" wx:for="{{product.parameters}}" wx:key="name">
+          <text class="param-label">{{item.name}}</text>
+          <text class="param-value">{{item.value}}</text>
+        </view>
+      </view>
+
+      <!-- 商品详情图片 -->
+      <view class="detail-images" wx:if="{{product.detail_images && product.detail_images.length > 0}}">
+        <image wx:for="{{product.detail_images}}" wx:key="index"
+               class="detail-image"
+               src="{{item.url}}"
+               mode="widthFix"
+               lazy-load="{{true}}"></image>
+      </view>
+    </view>
+
+    <!-- 用户评价 -->
+    <view class="review-section" wx:if="{{reviewStats && reviewStats.total_count > 0}}">
+      <view class="section-header" bindtap="viewAllReviews">
+        <text class="section-title">用户评价 ({{reviewStats.total_count}})</text>
+        <view class="section-extra">
+          <text class="average-rating">{{reviewStats.average_rating}}分</text>
+          <text class="view-all">查看全部 ></text>
+        </view>
+      </view>
+
+      <!-- 评价统计 -->
+      <view class="review-stats">
+        <view class="rating-breakdown">
+          <view class="rating-item" wx:for="{{reviewStats.rating_distribution}}" wx:key="rating">
+            <text class="rating-label">{{item.rating}}星</text>
+            <progress class="rating-progress" 
+                      percent="{{(item.count / reviewStats.total_count) * 100}}"
+                      stroke-width="8"
+                      activeColor="#FFD700"></progress>
+            <text class="rating-count">{{item.count}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 评价列表 -->
+      <view class="review-list">
+        <view class="review-item" wx:for="{{reviews}}" wx:key="id">
+          <view class="review-header">
+            <image class="reviewer-avatar" src="{{item.user_avatar || '/assets/images/logo.png'}}" mode="aspectFill"></image>
+            <view class="reviewer-info">
+              <text class="reviewer-name">{{item.user_nickname}}</text>
+              <view class="review-rating">
+                <text class="stars">{'★'.repeat(item.rating)}{'☆'.repeat(5-item.rating)}</text>
+                <text class="review-time">{{item.created_at}}</text>
+              </view>
+            </view>
+          </view>
+          <view class="review-content">{{item.content}}</view>
+          <view class="review-images" wx:if="{{item.images && item.images.length > 0}}">
+            <image wx:for="{{item.images}}" wx:key="index" wx:for-item="img"
+                   class="review-image"
+                   src="{{img.url}}"
+                   mode="aspectFill"></image>
+          </view>
+          <!-- 商户回复 -->
+          <view class="merchant-reply" wx:if="{{item.merchant_reply}}">
+            <text class="reply-label">商户回复：</text>
+            <text class="reply-content">{{item.merchant_reply}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 相关商品 -->
+    <view class="related-section" wx:if="{{relatedProducts.length > 0}}">
+      <view class="section-header">
+        <text class="section-title">相关推荐</text>
+      </view>
+      
+      <scroll-view class="related-products" scroll-x="{{true}}">
+        <view class="related-item" wx:for="{{relatedProducts}}" wx:key="id"
+              data-product-id="{{item.id}}" bindtap="viewRelatedProduct">
+          <image class="related-image" src="{{item.thumbnail}}" mode="aspectFill"></image>
+          <view class="related-info">
+            <text class="related-name">{{item.name}}</text>
+            <text class="related-price">¥{{formatPrice(item.current_price)}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 底部占位 -->
+    <view class="bottom-placeholder"></view>
+  </scroll-view>
+
+  <!-- 底部操作栏 -->
+  <view class="bottom-bar">
+    <view class="bar-left">
+      <view class="bar-item" bindtap="contactService">
+        <text class="bar-icon">💬</text>
+        <text class="bar-text">客服</text>
+      </view>
+      <view class="bar-item cart-item" bindtap="goToCart">
+        <text class="bar-icon">🛒</text>
+        <text class="bar-text">购物车</text>
+        <view class="cart-badge" wx:if="{{cartCount > 0}}">{{cartCount}}</view>
+      </view>
+    </view>
+    
+    <view class="bar-right">
+      <view class="add-cart-btn" bindtap="showSpecSelector" data-mode="cart">
+        <text>加入购物车</text>
+      </view>
+      <view class="buy-now-btn" bindtap="showSpecSelector" data-mode="buy">
+        <text>立即购买</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 悬浮购买栏 -->
+  <view class="floating-bar {{showFloatingBar ? 'show' : ''}}" wx:if="{{product}}">
+    <view class="floating-info">
+      <image class="floating-image" src="{{product.thumbnail}}" mode="aspectFill"></image>
+      <view class="floating-text">
+        <text class="floating-price">¥{{formatPrice(product.current_price)}}</text>
+        <text class="floating-name">{{product.name}}</text>
+      </view>
+    </view>
+    <view class="floating-actions">
+      <view class="floating-cart" bindtap="showSpecSelector" data-mode="cart">加购物车</view>
+      <view class="floating-buy" bindtap="showSpecSelector" data-mode="buy">立即购买</view>
+    </view>
+  </view>
+</view>
+
+<!-- 规格选择面板 -->
+<view class="spec-panel-mask" wx:if="{{showSpecPanel}}" bindtap="hideSpecPanel"></view>
+<view class="spec-panel {{showSpecPanel ? 'show' : ''}}">
+  <view class="spec-panel-header">
+    <image class="spec-product-image" src="{{product.thumbnail}}" mode="aspectFill"></image>
+    <view class="spec-product-info">
+      <text class="spec-product-price">¥{{formatPrice(product.current_price)}}</text>
+      <text class="spec-product-stock">库存{{product.stock}}件</text>
+      <text class="spec-selected">已选：{{getSpecDescription()}}</text>
+    </view>
+    <view class="spec-panel-close" bindtap="hideSpecPanel">×</view>
+  </view>
+
+  <scroll-view class="spec-panel-content" scroll-y="{{true}}">
+    <!-- 规格选择 -->
+    <view class="spec-groups" wx:if="{{product.specifications}}">
+      <view class="spec-group" wx:for="{{product.specifications}}" wx:key="id" wx:for-item="spec">
+        <text class="spec-group-title">{{spec.name}}</text>
+        <view class="spec-options">
+          <view class="spec-option {{selectedSpecs[spec.id] === option.id ? 'selected' : ''}}"
+                wx:for="{{spec.options}}" wx:key="id" wx:for-item="option"
+                data-spec-id="{{spec.id}}" data-option-id="{{option.id}}"
+                bindtap="selectSpec">
+            <text class="spec-option-text">{{option.name}}</text>
+            <text class="spec-option-price" wx:if="{{option.price_diff !== 0}}">
+              {{option.price_diff > 0 ? '+' : ''}}¥{{option.price_diff}}
+            </text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 数量选择 -->
+    <view class="quantity-section">
+      <text class="quantity-label">数量</text>
+      <view class="quantity-selector">
+        <view class="quantity-btn minus {{selectedQuantity <= 1 ? 'disabled' : ''}}"
+              data-type="minus" bindtap="changeQuantity">-</view>
+        <input class="quantity-input" 
+               type="number" 
+               value="{{selectedQuantity}}"
+               bindinput="inputQuantity"></input>
+        <view class="quantity-btn plus {{selectedQuantity >= product.stock ? 'disabled' : ''}}"
+              data-type="plus" bindtap="changeQuantity">+</view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="spec-panel-footer">
+    <view class="spec-confirm-btn {{specMode === 'cart' ? 'cart-style' : 'buy-style'}}"
+          bindtap="{{specMode === 'cart' ? 'addToCart' : 'buyNow'}}">
+      <text>{{specMode === 'cart' ? '加入购物车' : '立即购买'}}</text>
+    </view>
+  </view>
+</view>
+
+<!-- 分享面板 -->
+<view class="share-panel-mask" wx:if="{{showSharePanel}}" bindtap="hideShare"></view>
+<view class="share-panel {{showSharePanel ? 'show' : ''}}">
+  <view class="share-panel-header">
+    <text class="share-panel-title">分享给好友</text>
+    <view class="share-panel-close" bindtap="hideShare">×</view>
+  </view>
+  
+  <view class="share-options">
+    <button class="share-option" open-type="share">
+      <text class="share-icon">💬</text>
+      <text class="share-text">微信好友</text>
+    </button>
+    <view class="share-option" bindtap="generatePoster">
+      <text class="share-icon">📷</text>
+      <text class="share-text">生成海报</text>
+    </view>
+  </view>
+</view>
