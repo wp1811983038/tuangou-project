@@ -1,2 +1,67 @@
-<!--pages/profile/settings/index.wxml-->
-<text>pages/profile/settings/index.wxml</text>
+const wxmlTemplates = {
+  favorites: `
+    <view class="container">
+      <view class="loading" wx:if="{{loading}}">加载中...</view>
+      <view class="empty" wx:elif="{{favorites.length === 0}}">
+        <image src="/assets/images/empty-favorites.png"></image>
+        <text>暂无收藏商品</text>
+      </view>
+      <view class="favorites-list" wx:else>
+        <view class="favorite-item" wx:for="{{favorites}}" wx:key="id">
+          <!-- 收藏商品项 -->
+        </view>
+      </view>
+    </view>
+  `,
+  
+  coupons: `
+    <view class="container">
+      <view class="tabs">
+        <view class="tab {{currentTab === 0 ? 'active' : ''}}" bindtap="switchTab" data-tab="0">未使用</view>
+        <view class="tab {{currentTab === 1 ? 'active' : ''}}" bindtap="switchTab" data-tab="1">已使用</view>
+        <view class="tab {{currentTab === 2 ? 'active' : ''}}" bindtap="switchTab" data-tab="2">已过期</view>
+      </view>
+      <view class="coupons-list">
+        <view class="coupon-item" wx:for="{{coupons}}" wx:key="id">
+          <text class="coupon-name">{{item.name}}</text>
+          <text class="coupon-amount">¥{{item.amount}}</text>
+        </view>
+      </view>
+    </view>
+  `,
+  
+  points: `
+    <view class="container">
+      <view class="points-header">
+        <text class="points-title">我的积分</text>
+        <text class="points-value">{{userPoints}}</text>
+      </view>
+      <view class="points-history">
+        <view class="history-item" wx:for="{{pointsHistory}}" wx:key="id">
+          <text class="history-desc">{{item.desc}}</text>
+          <text class="history-amount {{item.type}}">{{item.amount > 0 ? '+' : ''}}{{item.amount}}</text>
+        </view>
+      </view>
+    </view>
+  `,
+  
+  settings: `
+    <view class="container">
+      <view class="setting-item">
+        <text class="setting-name">消息通知</text>
+        <switch checked="{{settings.notifications}}" bindchange="toggleSetting" data-key="notifications"></switch>
+      </view>
+      <view class="setting-item">
+        <text class="setting-name">位置服务</text>
+        <switch checked="{{settings.location}}" bindchange="toggleSetting" data-key="location"></switch>
+      </view>
+      <view class="setting-item">
+        <text class="setting-name">自动更新</text>
+        <switch checked="{{settings.autoUpdate}}" bindchange="toggleSetting" data-key="autoUpdate"></switch>
+      </view>
+      <button class="clear-btn" bindtap="clearCache">清除缓存</button>
+      <button class="about-btn" bindtap="about">关于我们</button>
+    </view>
+  `
+};
+

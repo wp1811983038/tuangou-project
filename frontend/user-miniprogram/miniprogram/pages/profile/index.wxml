@@ -1,83 +1,198 @@
-<!--pages/profile/index.wxml-->
+<!--pages/profile/index.wxml - 修复用户名显示-->
 <view class="container">
-  <!-- 用户信息区 -->
-  <view class="user-section">
-    <view class="user-info" bindtap="goToLogin">
-      <image class="avatar" src="{{userInfo.avatarUrl || '/assets/images/logo.png'}}"></image>
-      <view class="info">
-        <text class="nickname">{{userInfo.nickName || '点击登录'}}</text>
-        <text class="desc" wx:if="{{userInfo.nickName}}">查看并编辑个人资料</text>
+  <!-- 页面内容 -->
+  <view class="profile-content">
+    <!-- 用户信息区域 -->
+    <view class="user-section">
+      <view class="user-bg-decoration"></view>
+      
+      <view class="user-info-card">
+        <!-- 未登录状态 -->
+        <view class="user-info-guest" wx:if="{{!isLoggedIn}}" bindtap="goToLogin">
+          <image class="user-avatar" src="/assets/images/logo.png" mode="aspectFill"></image>
+          <view class="user-details">
+            <text class="user-name">点击登录</text>
+            <text class="user-desc">登录后享受更多服务</text>
+          </view>
+          <view class="login-arrow">
+            <text class="arrow-icon">></text>
+          </view>
+        </view>
+
+        <!-- 已登录状态 - 修复用户名显示逻辑 -->
+        <view class="user-info-logged" wx:else>
+          <view class="user-basic" bindtap="goToLogin" bindlongpress="onAvatarLongPress">
+            <image class="user-avatar" 
+                   src="{{userInfo.avatarUrl || userInfo.avatar || '/assets/images/logo.png'}}" 
+                   mode="aspectFill"></image>
+            <view class="user-details">
+              <!-- 修复：更完善的用户名显示逻辑 -->
+              <text class="user-name">
+                {{userInfo.displayName || userInfo.nickname || userInfo.nickName || userInfo.name || userInfo.realName || (userInfo.phone ? userInfo.phone.substring(0,3) + '****' + userInfo.phone.substring(7) : '团购用户')}}
+              </text>
+              <view class="user-level">
+                <text class="level-tag">{{userStats.levelName || '普通会员'}}</text>
+                <text class="user-desc">积分: {{userStats.points || 0}}</text>
+              </view>
+            </view>
+            <!-- 添加刷新按钮 -->
+            <view class="refresh-btn" catchtap="refreshUserInfo">
+              <text class="refresh-icon">↻</text>
+            </view>
+          </view>
+          
+          <!-- 用户统计信息 -->
+          <view class="user-stats">
+            <view class="stat-item" bindtap="onToolMenuTap" data-menu="{{toolMenus[1]}}">
+              <text class="stat-number">{{userStats.favoriteCount || 0}}</text>
+              <text class="stat-label">收藏</text>
+            </view>
+            <view class="stat-divider"></view>
+            <view class="stat-item" bindtap="onToolMenuTap" data-menu="{{toolMenus[2]}}">
+              <text class="stat-number">{{userStats.reviewCount || 0}}</text>
+              <text class="stat-label">评价</text>
+            </view>
+            <view class="stat-divider"></view>
+            <view class="stat-item" bindtap="onToolMenuTap" data-menu="{{toolMenus[4]}}">
+              <text class="stat-number">{{userStats.couponCount || 0}}</text>
+              <text class="stat-label">优惠券</text>
+            </view>
+          </view>
+
+          <!-- 调试信息显示（开发时使用，生产环境请删除） -->
+          <view class="debug-info" wx:if="{{debugInfo.showDebug}}">
+            <text class="debug-title">调试信息:</text>
+            <text class="debug-text">原始数据: {{userInfo}}</text>
+            <button class="debug-btn" size="mini" bindtap="showDebugInfo">查看详细</button>
+          </view>
+        </view>
       </view>
     </view>
-  </view>
 
-  <!-- 我的订单 -->
-  <view class="orders-section">
-    <view class="section-header">
-      <text class="title">我的订单</text>
-      <navigator url="/pages/order/list/index" class="view-all">
-        <text>全部订单</text>
-        <text class="arrow">></text>
+    <!-- 其他内容保持不变... -->
+    <!-- 我的订单模块 -->
+    <view class="orders-section">
+      <view class="section-header">
+        <text class="section-title">我的订单</text>
+        <view class="view-all-btn" bindtap="viewAllOrders" wx:if="{{isLoggedIn}}">
+          <text class="view-all-text">全部订单</text>
+          <text class="arrow-icon">></text>
+        </view>
+      </view>
+
+      <!-- 未登录提示 -->
+      <view class="login-prompt" wx:if="{{!isLoggedIn}}" bindtap="goToLogin">
+        <text class="prompt-text">登录后查看订单信息</text>
+        <text class="prompt-arrow">></text>
+      </view>
+
+      <!-- 订单类型列表 -->
+      <view class="order-types" wx:else>
+        <view class="order-type-item" 
+              bindtap="goToOrderPage" 
+              data-type="unpaid">
+          <view class="order-icon-wrapper">
+            <image class="order-icon" src="/assets/icons/order-unpaid.png" mode="aspectFit"></image>
+            <view class="order-badge" wx:if="{{orderStats.unpaid > 0}}">
+              <text class="badge-text">{{orderStats.unpaid > 99 ? '99+' : orderStats.unpaid}}</text>
+            </view>
+          </view>
+          <text class="order-type-name">待付款</text>
+        </view>
+
+        <view class="order-type-item" 
+              bindtap="goToOrderPage" 
+              data-type="unshipped">
+          <view class="order-icon-wrapper">
+            <image class="order-icon" src="/assets/icons/order-unshipped.png" mode="aspectFit"></image>
+            <view class="order-badge" wx:if="{{orderStats.unshipped > 0}}">
+              <text class="badge-text">{{orderStats.unshipped > 99 ? '99+' : orderStats.unshipped}}</text>
+            </view>
+          </view>
+          <text class="order-type-name">待发货</text>
+        </view>
+
+        <view class="order-type-item" 
+              bindtap="goToOrderPage" 
+              data-type="shipped">
+          <view class="order-icon-wrapper">
+            <image class="order-icon" src="/assets/icons/order-shipped.png" mode="aspectFit"></image>
+            <view class="order-badge" wx:if="{{orderStats.shipped > 0}}">
+              <text class="badge-text">{{orderStats.shipped > 99 ? '99+' : orderStats.shipped}}</text>
+            </view>
+          </view>
+          <text class="order-type-name">待收货</text>
+        </view>
+
+        <view class="order-type-item" 
+              bindtap="goToOrderPage" 
+              data-type="completed">
+          <view class="order-icon-wrapper">
+            <image class="order-icon" src="/assets/icons/order-completed.png" mode="aspectFit"></image>
+            <view class="order-badge" wx:if="{{orderStats.completed > 0}}">
+              <text class="badge-text">{{orderStats.completed > 99 ? '99+' : orderStats.completed}}</text>
+            </view>
+          </view>
+          <text class="order-type-name">已完成</text>
+        </view>
+
+        <view class="order-type-item" 
+              bindtap="goToOrderPage" 
+              data-type="refund">
+          <view class="order-icon-wrapper">
+            <image class="order-icon" src="/assets/icons/order-refund.png" mode="aspectFit"></image>
+            <view class="order-badge" wx:if="{{orderStats.refund > 0}}">
+              <text class="badge-text">{{orderStats.refund > 99 ? '99+' : orderStats.refund}}</text>
+            </view>
+          </view>
+          <text class="order-type-name">退款/售后</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 我的团购模块 -->
+    <view class="my-groups-section">
+      <navigator class="group-nav-item" url="/pages/my-groups/index">
+        <view class="nav-icon-wrapper">
+          <image class="nav-icon" src="/assets/icons/my-groups.png" mode="aspectFit"></image>
+        </view>
+        <view class="nav-content">
+          <text class="nav-name">我的团购</text>
+          <text class="nav-desc">查看参与的团购活动</text>
+        </view>
+        <text class="nav-arrow">></text>
       </navigator>
     </view>
-    <view class="order-types">
-      <navigator class="order-type" url="/pages/order/list/index?type=unpaid">
-        <image class="icon" src="/assets/images/logo.png"></image>
-        <text>待付款</text>
-      </navigator>
-      <navigator class="order-type" url="/pages/order/list/index?type=unshipped">
-        <image class="icon" src="/assets/images/logo.png"></image>
-        <text>待发货</text>
-      </navigator>
-      <navigator class="order-type" url="/pages/order/list/index?type=shipped">
-        <image class="icon" src="/assets/images/logo.png"></image>
-        <text>待收货</text>
-      </navigator>
-      <navigator class="order-type" url="/pages/order/list/index?type=completed">
-        <image class="icon" src="/assets/images/logo.png"></image>
-        <text>已完成</text>
-      </navigator>
-      <navigator class="order-type" url="/pages/order/list/index?type=refund">
-        <image class="icon" src="/assets/images/logo.png"></image>
-        <text>退款/售后</text>
-      </navigator>
+
+    <!-- 工具菜单模块 -->
+    <view class="tools-section">
+      <view class="tool-item" 
+            wx:for="{{toolMenus}}" 
+            wx:key="id"
+            bindtap="onToolMenuTap"
+            data-menu="{{item}}">
+        <view class="tool-icon-wrapper">
+          <image class="tool-icon" src="{{item.icon}}" mode="aspectFit"></image>
+          <view class="tool-badge" wx:if="{{item.badge > 0}}">
+            <text class="badge-num">{{item.badge > 99 ? '99+' : item.badge}}</text>
+          </view>
+        </view>
+        <text class="tool-name">{{item.name}}</text>
+        <text class="tool-arrow" wx:if="{{item.showArrow}}">></text>
+      </view>
     </view>
+
+    <!-- 退出登录按钮 -->
+    <view class="logout-section" wx:if="{{isLoggedIn}}">
+      <button class="logout-btn" bindtap="logout">退出登录</button>
+    </view>
+
+    <!-- 底部安全区域 -->
+    <view class="safe-area-bottom"></view>
   </view>
 
-  <!-- 工具列表 -->
-  <view class="tools-section">
-    <navigator class="tool-item" url="/pages/address/list/index">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">收货地址</text>
-      <text class="arrow">></text>
-    </navigator>
-    <navigator class="tool-item" url="/pages/user/favorites/index">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">我的收藏</text>
-      <text class="arrow">></text>
-    </navigator>
-    <navigator class="tool-item" url="/pages/review/list/index">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">我的评价</text>
-      <text class="arrow">></text>
-    </navigator>
-    <navigator class="tool-item" url="/pages/messages/index">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">消息中心</text>
-      <text class="arrow">></text>
-    </navigator>
-    <view class="tool-item" bindtap="contactUs">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">联系客服</text>
-      <text class="arrow">></text>
-    </view>
-    <navigator class="tool-item" url="/pages/profile/settings/index">
-      <image class="tool-icon" src="/assets/images/logo.png"></image>
-      <text class="tool-name">设置</text>
-      <text class="arrow">></text>
-    </navigator>
+  <!-- 消息红点 -->
+  <view class="message-dot" wx:if="{{isLoggedIn && unreadCount > 0}}">
+    <text class="dot-text">{{unreadCount > 99 ? '99+' : unreadCount}}</text>
   </view>
-
-  <!-- 退出登录按钮 -->
-  <view class="logout-btn" wx:if="{{isLoggedIn}}" bindtap="logout">退出登录</view>
 </view>

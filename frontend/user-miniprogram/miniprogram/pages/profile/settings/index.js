@@ -1,66 +1,72 @@
-// pages/profile/settings/index.js
-Page({
-
-  /**
-   * 页面的初始数据
-   */
+const settingsPage = {
   data: {
-
+    settings: {
+      notifications: true,
+      location: true,
+      autoUpdate: true
+    }
   },
 
-  /**
-   * 生命周期函数--监听页面加载
-   */
-  onLoad(options) {
-
+  onLoad() {
+    this.loadSettings();
   },
 
-  /**
-   * 生命周期函数--监听页面初次渲染完成
-   */
-  onReady() {
-
+  loadSettings() {
+    // 从本地存储加载设置
+    try {
+      const settings = wx.getStorageSync('userSettings');
+      if (settings) {
+        this.setData({ settings });
+      }
+    } catch (error) {
+      console.error('加载设置失败', error);
+    }
   },
 
-  /**
-   * 生命周期函数--监听页面显示
-   */
-  onShow() {
-
+  toggleSetting(e) {
+    const { key } = e.currentTarget.dataset;
+    const currentValue = this.data.settings[key];
+    
+    this.setData({
+      [`settings.${key}`]: !currentValue
+    });
+    
+    // 保存到本地存储
+    try {
+      wx.setStorageSync('userSettings', this.data.settings);
+    } catch (error) {
+      console.error('保存设置失败', error);
+    }
   },
 
-  /**
-   * 生命周期函数--监听页面隐藏
-   */
-  onHide() {
-
+  clearCache() {
+    wx.showModal({
+      title: '清除缓存',
+      content: '确定要清除所有缓存数据吗？',
+      success: (res) => {
+        if (res.confirm) {
+          try {
+            wx.clearStorageSync();
+            wx.showToast({
+              title: '缓存已清除',
+              icon: 'success'
+            });
+          } catch (error) {
+            wx.showToast({
+              title: '清除失败', 
+              icon: 'none'
+            });
+          }
+        }
+      }
+    });
   },
 
-  /**
-   * 生命周期函数--监听页面卸载
-   */
-  onUnload() {
-
-  },
-
-  /**
-   * 页面相关事件处理函数--监听用户下拉动作
-   */
-  onPullDownRefresh() {
-
-  },
-
-  /**
-   * 页面上拉触底事件的处理函数
-   */
-  onReachBottom() {
-
-  },
-
-  /**
-   * 用户点击右上角分享
-   */
-  onShareAppMessage() {
-
+  about() {
+    wx.showModal({
+      title: '关于我们',
+      content: '团购小程序 v1.0.0\n提供优质的团购服务',
+      showCancel: false
+    });
   }
-})
+};
