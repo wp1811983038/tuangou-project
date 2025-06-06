@@ -1,4 +1,4 @@
-<!--pages/product/detail/index.wxml - 商品详情页-->
+<!--pages/product/detail/index.wxml - 完整的商品详情页-->
 <view class="container">
 
   <!-- 页面加载状态 -->
@@ -54,35 +54,44 @@
 
     <!-- 商品基本信息 -->
     <view class="product-basic-info">
+      
       <!-- 价格区域 -->
       <view class="price-section">
+        <!-- 当前价格 -->
         <view class="current-price">
           <text class="currency">¥</text>
           <text class="price-value">{{formatPrice(product.current_price)}}</text>
         </view>
-        <view class="price-compare" wx:if="{{product.original_price > product.current_price}}">
+        
+        <!-- 原价对比 -->
+        <view class="price-compare" wx:if="{{product.original_price && product.current_price && product.original_price > product.current_price}}">
           <text class="original-price">¥{{formatPrice(product.original_price)}}</text>
-          <text class="discount-tag">
-            {{Math.floor((1 - product.current_price / product.original_price) * 10)}}折
-          </text>
+          <text class="discount-tag">{{calculateDiscount(product.original_price, product.current_price)}}折</text>
+        </view>
+        
+        <!-- 团购价格提示 -->
+        <view class="group-price-tip" wx:if="{{product.group_price && product.group_price < product.current_price}}">
+          <text class="group-price-text">团购价 ¥{{formatPrice(product.group_price)}}</text>
+          <text class="group-save-text">可省{{formatPrice(product.current_price - product.group_price)}}元</text>
         </view>
       </view>
 
-      <!-- 商品标题和销量 -->
+      <!-- 商品标题和描述 -->
       <view class="product-title">{{product.name}}</view>
       <view class="product-subtitle" wx:if="{{product.description}}">{{product.description}}</view>
       
-      <!-- 销量和库存 -->
+      <!-- 销量和库存信息 -->
       <view class="product-stats">
         <text class="sales-text">已售{{formatSales(product.sales)}}</text>
-        <text class="stock-text" wx:if="{{product.stock <= 10}}">仅剩{{product.stock}}件</text>
+        <text class="stock-text" wx:if="{{product.stock && product.stock <= 10 && product.stock > 0}}">仅剩{{product.stock}}件</text>
+        <text class="stock-text out-of-stock" wx:elif="{{product.stock === 0}}">已售罄</text>
         <text class="reviews-text" wx:if="{{reviewStats && reviewStats.total_count > 0}}" bindtap="viewAllReviews">
-          {{reviewStats.total_count}}条评价
+          {{reviewStats.total_count}}条评价 ⭐{{reviewStats.average_rating}}分
         </text>
       </view>
     </view>
 
-    <!-- 团购信息 -->
+    <!-- 团购信息区域 -->
     <view class="group-section" wx:if="{{activeGroups.length > 0}}">
       <view class="section-header">
         <text class="section-title">🎯 进行中的团购</text>
@@ -104,7 +113,7 @@
           </view>
           <view class="group-info">
             <text class="group-status">还差{{item.required_people - item.current_people}}人</text>
-            <text class="group-time">{{item.remaining_time}}</text>
+            <text class="group-time">{{item.remaining_time || '2小时'}}</text>
           </view>
         </view>
       </scroll-view>
@@ -118,10 +127,10 @@
           <text class="merchant-name">{{merchant.name}}</text>
           <view class="merchant-stats">
             <text class="merchant-rating" wx:if="{{merchant.rating}}">⭐ {{merchant.rating}}分</text>
-            <text class="merchant-distance" wx:if="{{deliveryInfo}}">{{deliveryInfo.distance}}</text>
+            <text class="merchant-distance" wx:if="{{deliveryInfo && deliveryInfo.distance}}">{{deliveryInfo.distance}}</text>
           </view>
           <text class="delivery-info" wx:if="{{deliveryInfo}}">
-            配送费¥{{deliveryInfo.fee}} · 预计{{deliveryInfo.time}}送达
+            配送费¥{{deliveryInfo.fee || 0}} · 预计{{deliveryInfo.time || '30-45分钟'}}送达
           </text>
         </view>
         <view class="merchant-arrow">
@@ -150,11 +159,36 @@
         <rich-text nodes="{{product.detail_description}}"></rich-text>
       </view>
       
+      <!-- 简单描述展示 -->
+      <view class="product-description" wx:elif="{{product.description}}">
+        <text>{{product.description}}</text>
+      </view>
+      
       <!-- 商品参数 -->
       <view class="product-params" wx:if="{{product.parameters && product.parameters.length > 0}}">
         <view class="param-item" wx:for="{{product.parameters}}" wx:key="name">
           <text class="param-label">{{item.name}}</text>
           <text class="param-value">{{item.value}}</text>
+        </view>
+      </view>
+
+      <!-- 基本参数展示 -->
+      <view class="product-params" wx:else>
+        <view class="param-item">
+          <text class="param-label">商品名称</text>
+          <text class="param-value">{{product.name}}</text>
+        </view>
+        <view class="param-item" wx:if="{{product.unit}}">
+          <text class="param-label">销售单位</text>
+          <text class="param-value">{{product.unit}}</text>
+        </view>
+        <view class="param-item">
+          <text class="param-label">库存数量</text>
+          <text class="param-value">{{product.stock}}件</text>
+        </view>
+        <view class="param-item" wx:if="{{product.weight}}">
+          <text class="param-label">商品重量</text>
+          <text class="param-value">{{product.weight}}g</text>
         </view>
       </view>
 
@@ -179,7 +213,7 @@
       </view>
 
       <!-- 评价统计 -->
-      <view class="review-stats">
+      <view class="review-stats" wx:if="{{reviewStats.rating_distribution && reviewStats.rating_distribution.length > 0}}">
         <view class="rating-breakdown">
           <view class="rating-item" wx:for="{{reviewStats.rating_distribution}}" wx:key="rating">
             <text class="rating-label">{{item.rating}}星</text>
@@ -193,19 +227,19 @@
       </view>
 
       <!-- 评价列表 -->
-      <view class="review-list">
+      <view class="review-list" wx:if="{{reviews && reviews.length > 0}}">
         <view class="review-item" wx:for="{{reviews}}" wx:key="id">
           <view class="review-header">
             <image class="reviewer-avatar" src="{{item.user_avatar || '/assets/images/logo.png'}}" mode="aspectFill"></image>
             <view class="reviewer-info">
-              <text class="reviewer-name">{{item.user_nickname}}</text>
+              <text class="reviewer-name">{{item.user_nickname || '匿名用户'}}</text>
               <view class="review-rating">
-                <text class="stars">{'★'.repeat(item.rating)}{'☆'.repeat(5-item.rating)}</text>
+                <text class="stars">{{item.star_display || '☆☆☆☆☆'}}</text>
                 <text class="review-time">{{item.created_at}}</text>
               </view>
             </view>
           </view>
-          <view class="review-content">{{item.content}}</view>
+          <view class="review-content">{{item.content || '用户没有留下评价内容'}}</view>
           <view class="review-images" wx:if="{{item.images && item.images.length > 0}}">
             <image wx:for="{{item.images}}" wx:key="index" wx:for-item="img"
                    class="review-image"
@@ -222,7 +256,7 @@
     </view>
 
     <!-- 相关商品 -->
-    <view class="related-section" wx:if="{{relatedProducts.length > 0}}">
+    <view class="related-section" wx:if="{{relatedProducts && relatedProducts.length > 0}}">
       <view class="section-header">
         <text class="section-title">相关推荐</text>
       </view>
@@ -230,10 +264,10 @@
       <scroll-view class="related-products" scroll-x="{{true}}">
         <view class="related-item" wx:for="{{relatedProducts}}" wx:key="id"
               data-product-id="{{item.id}}" bindtap="viewRelatedProduct">
-          <image class="related-image" src="{{item.thumbnail}}" mode="aspectFill"></image>
+          <image class="related-image" src="{{item.thumbnail || '/assets/images/logo.png'}}" mode="aspectFill"></image>
           <view class="related-info">
             <text class="related-name">{{item.name}}</text>
-            <text class="related-price">¥{{formatPrice(item.current_price)}}</text>
+            <text class="related-price">¥{{formatPrice(item.current_price || item.price)}}</text>
           </view>
         </view>
       </scroll-view>
@@ -243,8 +277,17 @@
     <view class="bottom-placeholder"></view>
   </scroll-view>
 
+  <!-- 空状态页面 -->
+  <view class="empty-state" wx:if="{{!loading && !product}}">
+    <view class="empty-icon">📦</view>
+    <text class="empty-text">商品不存在或已下架</text>
+    <view class="empty-actions">
+      <view class="empty-btn" bindtap="goBack">返回上页</view>
+    </view>
+  </view>
+
   <!-- 底部操作栏 -->
-  <view class="bottom-bar">
+  <view class="bottom-bar" wx:if="{{product}}">
     <view class="bar-left">
       <view class="bar-item" bindtap="contactService">
         <text class="bar-icon">💬</text>
@@ -253,22 +296,32 @@
       <view class="bar-item cart-item" bindtap="goToCart">
         <text class="bar-icon">🛒</text>
         <text class="bar-text">购物车</text>
-        <view class="cart-badge" wx:if="{{cartCount > 0}}">{{cartCount}}</view>
+        <view class="cart-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
       </view>
     </view>
     
     <view class="bar-right">
-      <view class="add-cart-btn" bindtap="showSpecSelector" data-mode="cart">
-        <text>加入购物车</text>
-      </view>
-      <view class="buy-now-btn" bindtap="showSpecSelector" data-mode="buy">
-        <text>立即购买</text>
-      </view>
+      <!-- 如果商品有库存，显示正常按钮 -->
+      <block wx:if="{{product.stock > 0 && product.status === 1}}">
+        <view class="add-cart-btn" bindtap="showSpecSelector" data-mode="cart">
+          <text>加入购物车</text>
+        </view>
+        <view class="buy-now-btn" bindtap="showSpecSelector" data-mode="buy">
+          <text>立即购买</text>
+        </view>
+      </block>
+      
+      <!-- 如果没库存，显示缺货状态 -->
+      <block wx:else>
+        <view class="disabled-btn">
+          <text>{{product.stock === 0 ? '暂时缺货' : '商品下架'}}</text>
+        </view>
+      </block>
     </view>
   </view>
 
   <!-- 悬浮购买栏 -->
-  <view class="floating-bar {{showFloatingBar ? 'show' : ''}}" wx:if="{{product}}">
+  <view class="floating-bar {{showFloatingBar ? 'show' : ''}}" wx:if="{{product && product.stock > 0}}">
     <view class="floating-info">
       <image class="floating-image" src="{{product.thumbnail}}" mode="aspectFill"></image>
       <view class="floating-text">
@@ -298,7 +351,7 @@
 
   <scroll-view class="spec-panel-content" scroll-y="{{true}}">
     <!-- 规格选择 -->
-    <view class="spec-groups" wx:if="{{product.specifications}}">
+    <view class="spec-groups" wx:if="{{product.specifications && product.specifications.length > 0}}">
       <view class="spec-group" wx:for="{{product.specifications}}" wx:key="id" wx:for-item="spec">
         <text class="spec-group-title">{{spec.name}}</text>
         <view class="spec-options">
@@ -307,8 +360,8 @@
                 data-spec-id="{{spec.id}}" data-option-id="{{option.id}}"
                 bindtap="selectSpec">
             <text class="spec-option-text">{{option.name}}</text>
-            <text class="spec-option-price" wx:if="{{option.price_diff !== 0}}">
-              {{option.price_diff > 0 ? '+' : ''}}¥{{option.price_diff}}
+            <text class="spec-option-price" wx:if="{{option.price_diff && option.price_diff !== 0}}">
+              {{option.price_diff > 0 ? '+' : ''}}¥{{formatPrice(option.price_diff)}}
             </text>
           </view>
         </view>

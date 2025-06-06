@@ -1,2 +1,90 @@
 <!--pages/address/edit/index.wxml-->
-<text>pages/address/edit/index.wxml</text>
+<view class="container">
+  <form bindsubmit="onFormSubmit">
+    <!-- 收货人信息 -->
+    <view class="form-section">
+      <view class="form-item">
+        <text class="label required">收货人</text>
+        <input class="input" 
+               name="consignee"
+               value="{{formData.consignee}}"
+               placeholder="请输入收货人姓名"
+               maxlength="20"
+               bindinput="onInputChange"
+               data-field="consignee" />
+      </view>
+      
+      <view class="form-item">
+        <text class="label required">手机号码</text>
+        <input class="input" 
+               name="phone"
+               type="number"
+               value="{{formData.phone}}"
+               placeholder="请输入手机号码"
+               maxlength="11"
+               bindinput="onInputChange"
+               data-field="phone" />
+      </view>
+    </view>
+
+    <!-- 地址信息 -->
+    <view class="form-section">
+      <view class="form-item" bindtap="chooseLocation">
+        <text class="label required">所在地区</text>
+        <view class="picker-content">
+          <text class="picker-text {{formData.province ? '' : 'placeholder'}}">
+            {{formData.province ? formData.province + formData.city + formData.district : '请选择省市区'}}
+          </text>
+          <text class="arrow">></text>
+        </view>
+      </view>
+      
+      <view class="form-item">
+        <text class="label required">详细地址</text>
+        <textarea class="textarea" 
+                  name="address"
+                  value="{{formData.address}}"
+                  placeholder="请输入详细地址，如街道、门牌号等"
+                  maxlength="100"
+                  bindinput="onInputChange"
+                  data-field="address" />
+      </view>
+      
+      <view class="form-item">
+        <text class="label">邮政编码</text>
+        <input class="input" 
+               name="postal_code"
+               type="number"
+               value="{{formData.postal_code}}"
+               placeholder="请输入邮政编码（选填）"
+               maxlength="6"
+               bindinput="onInputChange"
+               data-field="postal_code" />
+      </view>
+    </view>
+
+    <!-- 其他设置 -->
+    <view class="form-section">
+      <view class="form-item switch-item">
+        <text class="label">设为默认地址</text>
+        <switch checked="{{formData.is_default}}" 
+                bindchange="onSwitchChange"
+                color="#FF4D4F" />
+      </view>
+    </view>
+
+    <!-- 提交按钮 -->
+    <view class="submit-section">
+      <button class="submit-btn" formType="submit">保存地址</button>
+      <button class="cancel-btn" bindtap="onCancel">取消</button>
+    </view>
+  </form>
+
+  <!-- 地区选择器 -->
+  <picker mode="region" 
+          bindchange="onRegionChange" 
+          value="{{region}}"
+          custom-item="{{customItem}}"
+          wx:if="{{showRegionPicker}}">
+  </picker>
+</view>
